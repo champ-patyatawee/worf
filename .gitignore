@@ -1,0 +1,6 @@
+node_modules
+dist
+agents/docs/backend/dist/routes/pages.js
+graphify-out
+.vite
+.env

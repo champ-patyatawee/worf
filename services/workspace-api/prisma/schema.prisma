@@ -1,0 +1,245 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatar    String?
+  status    UserStatus @default(offline)
+  role      UserRole   @default(user)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  messages        Message[]
+  reactions       Reaction[]
+  channels        ChannelMember[]
+  directMessages  DirectMessage[] @relation("UserDirectMessages")
+  receivedMessages DirectMessage[] @relation("RecipientDirectMessages")
+  chatImages      ChatImage[]
+  chatLinks       ChatLink[]
+}
+
+enum UserStatus {
+  online
+  offline
+  busy
+  away
+}
+
+enum UserRole {
+  admin
+  user
+  agent
+}
+
+model Channel {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  description String?
+  type        ChannelType @default(public)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  members     ChannelMember[]
+  messages    Message[]
+}
+
+enum ChannelType {
+  public
+  private
+  direct
+}
+
+enum ChannelMemberRole {
+  admin
+  member
+}
+
+model ChannelMember {
+  channelId   String
+  userId      String
+  role        ChannelMemberRole @default(member)
+  joinedAt    DateTime   @default(now())
+
+  channel     Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, userId])
+}
+
+model Message {
+  id String @id @default(cuid())
+  content String
+  channelId String?
+  userId String
+  threadId String? // For threaded replies
+  embedding String? // JSON array of embedding vector
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Message? @relation("MessageThread", fields: [threadId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies Message[] @relation("MessageThread")
+  reactions Reaction[]
+  directMessage DirectMessage?
+  chatImages ChatImage[]
+  chatLinks ChatLink[]
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model DirectMessage {
+  id String @id @default(cuid())
+  content String
+  userId String // Sender
+  recipientId String // Recipient
+  messageId String? @unique // Links to a Message if also in a channel
+  embedding String? // JSON array of embedding vector
+  readAt DateTime?
+  createdAt DateTime @default(now())
+
+  sender User @relation("UserDirectMessages", fields: [userId], references: [id], onDelete: Cascade)
+  recipient User @relation("RecipientDirectMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  chatImages ChatImage[]
+
+  @@index([userId, recipientId])
+  @@index([recipientId, userId])
+  @@index([recipientId, readAt])
+}
+
+// Chat Image Support
+model ChatImage {
+  id           String   @id @default(cuid())
+  messageId    String?
+  dmMessageId  String?
+  userId       String
+  url          String
+  thumbnailUrl String?
+  width        Int?
+  height       Int?
+  fileSize     Int
+  mimeType     String
+  deletedAt    DateTime? // Soft delete
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  message      Message?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  dmMessage   DirectMessage? @relation(fields: [dmMessageId], references: [id], onDelete: SetNull)
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metadata     ImageMetadata?
+
+  @@index([messageId])
+  @@index([dmMessageId])
+  @@index([userId])
+  @@index([deletedAt])
+}
+
+model ImageMetadata {
+  id              String   @id @default(cuid())
+  imageId         String   @unique
+  cameraMake      String?
+  cameraModel     String?
+  dateTaken       DateTime?
+  locationLat     Float?
+  locationLng     Float?
+  orientation     Int?
+  exifData        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  image           ChatImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+}
+
+model ChatLink {
+  id          String   @id @default(cuid())
+  messageId   String?
+  userId      String
+  url         String
+  title       String?
+  description String?
+  imageUrl    String?
+  favicon     String?
+  siteName    String?
+  deletedAt   DateTime? // Soft delete
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  message     Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([userId])
+  @@index([deletedAt])
+  @@index([url])
+}
+
+// AI Agents
+model Agent {
+  id           String   @id @default(uuid())
+  name         String   @unique // e.g., "AgentKanban" - used in @mention
+  displayName String?  // e.g., "Kanban Assistant"
+  description String?  // e.g., "Helps manage Kanban boards"
+  systemPrompt String  // agent.md - system prompt for LLM
+  skills      String   // skill.md - capabilities/documentation
+  avatar      String?
+  isActive    Boolean  @default(true)
+  providerId  String?  // AI provider to use (if null, use default)
+  agentUrl    String?  // URL of external agent microservice (e.g., "http://agent-kanban:8000")
+  agentType   String?  // "embedded" (LLM) or "external" (proxy to microservice)
+  slashCommand String?  @unique // e.g., "/kanban" - slash command to open web view
+  webViewUrl  String?  // e.g., "http://agent-kanban:8000/view" - URL opened by slash command
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([isActive])
+  @@index([slashCommand])
+}
+
+// AI Providers (configurable)
+model AIProvider {
+  id           String   @id @default(uuid())
+  name         String
+  provider    String
+  apiUrl      String
+  apiKey      String
+  model       String
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([isDefault])
+}
