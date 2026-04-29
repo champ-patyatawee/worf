@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button, Input, Modal, Select } from '@/components/common';
-import { Plus, Pencil, Trash2, TestTube } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { api } from '@/services/api';
 
@@ -56,12 +56,8 @@ export function AIProvider() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<AIProvider | null>(null);
   const [deletingProvider, setDeletingProvider] = useState<AIProvider | null>(null);
-  const [testingProvider, setTestingProvider] = useState<AIProvider | null>(null);
-  const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
     loadProviders();
@@ -114,34 +110,6 @@ export function AIProvider() {
       }
     } catch (err) {
       console.error('Failed to toggle provider:', err);
-    }
-  };
-
-  const handleTest = async (provider: AIProvider) => {
-    setTestingProvider(provider);
-    setIsTestModalOpen(true);
-    setTestResult(null);
-    setIsTesting(true);
-
-    try {
-      // Try a simple API call to test
-      const response = await fetch(`${provider.apiUrl}/models`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${provider.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (response.ok) {
-        setTestResult({ type: 'success', text: `Connection successful to ${provider.name}!` });
-      } else {
-        setTestResult({ type: 'error', text: `Error: ${response.status} ${response.statusText}` });
-      }
-    } catch (err: any) {
-      setTestResult({ type: 'error', text: `Connection failed: ${err.message}` });
-    } finally {
-      setIsTesting(false);
     }
   };
 
@@ -214,15 +182,8 @@ export function AIProvider() {
                       {provider.isActive ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleTest(provider)}
-                        className="p-1.5 rounded hover:bg-bg-hover transition-colors-fast"
-                        title="Test Connection"
-                      >
-                        <TestTube className="h-4 w-4 text-text-tertiary" />
-                      </button>
                       <button
                         onClick={() => handleEdit(provider)}
                         className="p-1.5 rounded hover:bg-bg-hover transition-colors-fast"
@@ -257,27 +218,6 @@ export function AIProvider() {
           <Button variant="danger" onClick={confirmDelete}>
             Delete
           </Button>
-        </div>
-      </Modal>
-
-      <Modal isOpen={isTestModalOpen} onClose={() => setIsTestModalOpen(false)} title="Test Connection">
-        <div className="space-y-4">
-          <p className="text-text-secondary">
-            Testing connection to <span className="font-medium text-text-primary">{testingProvider?.name}</span>
-          </p>
-          {testResult && (
-            <div className={`p-3 rounded-[var(--radius-md)] text-sm border-2 shadow-[var(--shadow-sm)] ${testResult.type === 'success' ? 'bg-status-success/10 text-status-success border-status-success/30' : 'bg-status-error/10 text-status-error border-status-error/30'}`}>
-              {testResult.text}
-            </div>
-          )}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setIsTestModalOpen(false)}>
-              Close
-            </Button>
-            <Button onClick={() => testingProvider && handleTest(testingProvider)} isLoading={isTesting}>
-              Retry
-            </Button>
-          </div>
         </div>
       </Modal>
     </div>
