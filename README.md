@@ -22,13 +22,21 @@ Chat, Notes, Kanban — all in one place. AI-native workspace with multi-provide
 - Node.js 20+ (for local dev)
 - A HuggingFace token (for embedding model)
 
+### Quick Start (all in one)
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+The app will be available at **http://localhost:5173**.
+
 ### Setup
 
 ```bash
 # 1. Clone and enter the project
 cd worf
 
-# 2. (Optional) Set HF_TOKEN in .env for the embedding model
+# 2. (Optional) Set HF_TOKEN in .env for the embedding model (similarity search)
 echo "HF_TOKEN=hf_your_token_here" >> .env
 
 # 3. Start infrastructure (PostgreSQL + Redis)
@@ -43,17 +51,6 @@ docker compose -f docker-compose.dev.yml run --rm kanban-api-init
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-The app will be available at **http://localhost:5173**.
-
-### Quick Start (all in one)
-
-```bash
-docker compose -f docker-compose.dev.yml up -d postgres redis
-docker compose -f docker-compose.dev.yml run --rm workspace-api-init
-docker compose -f docker-compose.dev.yml run --rm note-api-init
-docker compose -f docker-compose.dev.yml run --rm kanban-api-init
-docker compose -f docker-compose.dev.yml up -d
-```
 
 ### Default Credentials
 
