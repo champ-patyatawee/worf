@@ -117,6 +117,9 @@ services:
       args:
         HF_TOKEN: hf_EzvLVLoXXXXX
     command: ["sh", "-c", "npx prisma db push && npx tsx prisma/seed.ts"]
+    volumes:
+      - ./services/workspace-api:/app
+      - /app/node_modules
     environment:
       DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/workspace
     depends_on:

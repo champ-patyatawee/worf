@@ -10,8 +10,16 @@ const settingsTabs = [
 ];
 
 export function SettingsLayout() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
   const location = useLocation();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+        <div className="animate-spin rounded-full h-7 w-7 border-2" style={{ borderColor: 'var(--color-text-tertiary)', borderTopColor: 'transparent' }} />
+      </div>
+    );
+  }
 
   if (!user || user.role !== 'admin') {
     return <Navigate to="/channels" replace />;
