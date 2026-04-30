@@ -30,6 +30,12 @@ docker compose -f docker-compose.dev.yml up -d
 
 The app will be available at **http://localhost:5173**.
 
+### Default Credentials
+
+| Email | Password |
+|-------|----------|
+| `admin@worf.dev` | `123456` |
+
 ### Setup
 
 ```bash
@@ -50,13 +56,6 @@ docker compose -f docker-compose.dev.yml run --rm kanban-api-init
 # 5. Start everything
 docker compose -f docker-compose.dev.yml up -d
 ```
-
-
-### Default Credentials
-
-| Email | Password |
-|-------|----------|
-| `admin@worf.dev` | `123456` |
 
 ## Re-initializing Database
 
