@@ -34,6 +34,7 @@ export function Channel() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [threadMessage, setThreadMessage] = useState<Message | null>(null);
+  const [sendTrigger, setSendTrigger] = useState(0);
 
   // Fetch channel details and check admin status
   useEffect(() => {
@@ -184,6 +185,7 @@ export function Channel() {
           };
           console.log('[Channel] Transformed message images:', transformedMessage.images);
           addMessage(id, transformedMessage);
+          setSendTrigger((prev) => prev + 1);
         }
       } else {
         const response = await api.sendMessage(id, content);
@@ -196,6 +198,7 @@ export function Channel() {
             images: data.chatImages || [],
           };
           addMessage(id, transformedMessage);
+          setSendTrigger((prev) => prev + 1);
         }
       }
     } catch (err) {
@@ -278,6 +281,7 @@ export function Channel() {
         onOpenThread={setThreadMessage}
         onLoadOlder={fetchMore}
         highlightedMessageId={highlightParam}
+        scrollToBottomKey={sendTrigger}
       />
 
       <EnhancedMessageInput

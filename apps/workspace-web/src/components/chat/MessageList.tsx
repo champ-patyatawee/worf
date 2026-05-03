@@ -31,6 +31,7 @@ interface MessageListProps {
   onOpenThread?: (message: MessageType) => void;
   onLoadOlder?: () => void;
   highlightedMessageId?: string | null;
+  scrollToBottomKey?: number;
 }
 
 export function MessageList({
@@ -42,7 +43,8 @@ export function MessageList({
   renderMessage,
   onOpenThread,
   onLoadOlder,
-  highlightedMessageId
+  highlightedMessageId,
+  scrollToBottomKey
 }: MessageListProps) {
   const currentUserId = useAuthStore((state) => state.user?.id);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,6 +53,9 @@ export function MessageList({
 
   const [pullState, setPullState] = useState<PullState>('idle');
   const [pullDistance, setPullDistance] = useState(0);
+
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [newMessageCount, setNewMessageCount] = useState(0);
 
   const touchStateRef = useRef({
     startY: 0,
@@ -62,6 +67,7 @@ export function MessageList({
   const isLoadingOlderRef = useRef(false);
   const hasMoreRef = useRef(hasMore);
   const isAtTopRef = useRef(false);
+  const prevMessagesLengthRef = useRef(messages.length);
 
   useEffect(() => {
     hasMoreRef.current = hasMore;
@@ -104,6 +110,23 @@ export function MessageList({
       }
     }
   }, [messages, highlightedMessageId]);
+
+  // Auto-scroll to bottom on send trigger (user hit Enter)
+  useEffect(() => {
+    if (scrollToBottomKey && scrollToBottomKey > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setNewMessageCount(0);
+    }
+  }, [scrollToBottomKey]);
+
+  // Detect new messages arriving while scrolled up
+  useEffect(() => {
+    const prevLen = prevMessagesLengthRef.current;
+    prevMessagesLengthRef.current = messages.length;
+    if (messages.length > prevLen && !isAtBottom) {
+      setNewMessageCount((prev) => prev + (messages.length - prevLen));
+    }
+  }, [messages, isAtBottom]);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!hasMoreRef.current) return;
@@ -158,6 +181,10 @@ export function MessageList({
     const container = containerRef.current;
     if (!container) return;
     isAtTopRef.current = container.scrollTop <= 0;
+    const threshold = 60;
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    setIsAtBottom(atBottom);
+    if (atBottom) setNewMessageCount(0);
   }, []);
 
   useEffect(() => {
@@ -340,6 +367,24 @@ export function MessageList({
           );
         })}
         <div ref={bottomRef} />
+        {newMessageCount > 0 && (
+          <div className="sticky bottom-4 flex justify-center">
+            <button
+              onClick={() => {
+                bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+                setNewMessageCount(0);
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold
+                bg-[var(--color-accent-primary)] text-white border-2 border-[var(--color-border-primary)]
+                shadow-[2px_2px_0px_#0D0D0D] hover:shadow-[3px_3px_0px_#0D0D0D]
+                active:translate-x-[1px] active:translate-y-[1px] active:shadow-none
+                transition-all duration-150 cursor-pointer"
+            >
+              <span className="text-base leading-none">↓</span>
+              <span>{newMessageCount} new message{newMessageCount > 1 ? 's' : ''}</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

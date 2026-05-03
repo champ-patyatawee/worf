@@ -4,3 +4,6 @@ agents/docs/backend/dist/routes/pages.js
 graphify-out
 .vite
 .env
+.DS_Store
+plan
+test

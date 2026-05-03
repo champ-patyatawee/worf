@@ -30,6 +30,7 @@ export function DirectMessage() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [sendTrigger, setSendTrigger] = useState(0);
   const currentUserId = useAuthStore((state) => state.user?.id);
 
   useEffect(() => {
@@ -184,6 +185,7 @@ export function DirectMessage() {
             images: data.chatImages || [],
           };
           setMessages((prev) => [...prev, userMessage]);
+          setSendTrigger((prev) => prev + 1);
           
           // Stream agent response and add to DM - use the new DM endpoint
           const { streamAgentChat } = await import('@/services/agentService');
@@ -224,6 +226,7 @@ export function DirectMessage() {
           images: data.chatImages || [],
         };
         setMessages((prev) => [...prev, transformedMessage]);
+        setSendTrigger((prev) => prev + 1);
       }
     } catch (err) {
       console.error('Failed to send message:', err);
@@ -340,6 +343,7 @@ export function DirectMessage() {
         renderMessage={renderMessage}
         onLoadOlder={handleLoadOlder}
         highlightedMessageId={highlightParam}
+        scrollToBottomKey={sendTrigger}
       />
 
       {/* Enhanced Input with image upload, markdown, multiline */}

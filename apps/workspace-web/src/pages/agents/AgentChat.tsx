@@ -1,7 +1,8 @@
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import { Avatar } from '@/components/common';
-import { MessageList, EnhancedMessageInput, EnhancedMessage } from '@/components/chat';
+import { MessageList, EnhancedMessage } from '@/components/chat';
+import { AgentMessageInput } from '@/components/agents';
 import { useUserStore } from '@/stores/userStore';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
@@ -24,6 +25,7 @@ export function AgentChat() {
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [sendTrigger, setSendTrigger] = useState(0);
   const currentUserId = useAuthStore((state) => state.user?.id);
 
   useEffect(() => {
@@ -150,6 +152,7 @@ export function AgentChat() {
       if (data?.id) {
         const userMessage = { ...data, images: data.chatImages || [] };
         setMessages((prev) => [...prev, userMessage]);
+        setSendTrigger((prev) => prev + 1);
 
         const { streamAgentChat } = await import('@/services/agentService');
         try {
@@ -263,9 +266,10 @@ export function AgentChat() {
         renderMessage={renderMessage}
         onLoadOlder={handleLoadOlder}
         highlightedMessageId={highlightParam}
+        scrollToBottomKey={sendTrigger}
       />
 
-      <EnhancedMessageInput
+      <AgentMessageInput
         onSend={handleSendMessage}
         onSendLink={handleSendLink}
         onImageUpload={handleImageUpload}
