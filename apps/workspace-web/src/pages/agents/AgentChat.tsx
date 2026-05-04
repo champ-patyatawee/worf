@@ -136,7 +136,7 @@ export function AgentChat() {
       const task = content.trim();
 
       const history: { role: string; content: string }[] = [];
-      const recentMsgs = messages.slice(-4);
+      const recentMsgs = messages.slice(-20);
       for (const msg of recentMsgs) {
         const msgUser = msg.user;
         if (msgUser?.id === currentUserId) {
