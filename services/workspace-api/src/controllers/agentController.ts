@@ -54,12 +54,12 @@ export class AgentController {
    */
   async createAgent(req: Request, res: Response) {
     try {
-      const { name, displayName, description, systemPrompt, skills, avatar, providerId, agentUrl, agentType, slashCommand, webViewUrl } = req.body;
+      const { name, displayName, description, systemPrompt, avatar, providerId, agentUrl, agentType, slashCommand, webViewUrl } = req.body;
       
-      if (!name || !systemPrompt || !skills) {
+      if (!name || !systemPrompt) {
         return res.status(400).json({ 
           success: false, 
-          error: 'name, systemPrompt, and skills are required' 
+          error: 'name and systemPrompt are required' 
         });
       }
 
@@ -68,7 +68,6 @@ export class AgentController {
         displayName,
         description,
         systemPrompt,
-        skills,
         avatar,
         providerId,
         agentUrl,
@@ -126,7 +125,7 @@ export class AgentController {
   async updateAgent(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const { displayName, description, systemPrompt, skills, avatar, isActive, providerId, agentUrl, agentType, slashCommand, webViewUrl } = req.body;
+      const { displayName, description, systemPrompt, avatar, isActive, providerId, agentUrl, agentType, slashCommand, webViewUrl } = req.body;
       
       const agent = await agentService.update(id, {
         displayName,

@@ -210,7 +210,6 @@ model Agent {
   displayName String?  // e.g., "Kanban Assistant"
   description String?  // e.g., "Helps manage Kanban boards"
   systemPrompt String  // agent.md - system prompt for LLM
-  skills      String   // skill.md - capabilities/documentation
   avatar      String?
   isActive    Boolean  @default(true)
   providerId  String?  // AI provider to use (if null, use default)

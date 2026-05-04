@@ -24,11 +24,22 @@ export interface ToolDefinition {
   // Default config (overridable in ToolConfig DB)
   defaultConfig: Record<string, unknown>;
 
+  // Skill documentation — markdown injected into agent's system prompt when tool is enabled
+  skill: string;
+
   // The handler function
   handler: (
     params: Record<string, unknown>,
     config: Record<string, unknown>
   ) => Promise<ToolResult>;
+}
+
+export function getToolSkills(enabledToolNames: string[]): string {
+  const tools = getEnabledTools(enabledToolNames);
+  return tools
+    .map((t) => t.skill)
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 export interface ToolResult {

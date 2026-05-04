@@ -6,8 +6,8 @@ import { Settings, Bot, FileText, ChevronRight, Wrench } from 'lucide-react';
 const settingsTabs = [
   { id: 'ai', label: 'AI Provider', icon: Bot, path: '/settings/ai' },
   { id: 'agents', label: 'Agents', icon: Bot, path: '/settings/agents' },
-  { id: 'note', label: 'Note LLM', icon: FileText, path: '/settings/note' },
   { id: 'tools', label: 'Tools', icon: Wrench, path: '/settings/tools' },
+  { id: 'note', label: 'Note LLM', icon: FileText, path: '/settings/note' },
 ];
 
 export function SettingsLayout() {

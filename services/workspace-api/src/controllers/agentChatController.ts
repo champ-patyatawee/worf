@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/database';
 import { agentService } from '../services/agentService';
 import { aiProviderService } from '../services/aiProviderService';
 import { messageService } from '../services/messageService';
 import { emitToChannel } from '../socket/socket';
 import { emitToDM } from '../socket/socket';
+import { getToolSkills } from '../tools/registry';
 
 /**
  * POST /api/agents/:name/chat - Chat with an agent (channel thread)
@@ -173,8 +175,13 @@ async function handleEmbeddedAgentChat(req: Request, res: Response, agent: any) 
     });
   }
   
-  // Build full prompt
-  const systemPrompt = `${agent.systemPrompt}\n\n${agent.skills}`;
+  // Build full prompt with tool skills
+  const toolConfigs = await prisma.toolConfig.findMany({ where: { isEnabled: true } });
+  const enabledToolNames = toolConfigs.map((tc: { toolName: string }) => tc.toolName);
+  const toolSkills = getToolSkills(enabledToolNames);
+  const systemPrompt = toolSkills
+    ? `${agent.systemPrompt}\n\n${toolSkills}`
+    : agent.systemPrompt;
   
   try {
     const apiUrl = provider.apiUrl;
@@ -290,8 +297,13 @@ async function handleEmbeddedAgentDM(req: Request, res: Response, agent: any) {
     });
   }
   
-  // Build full prompt
-  const systemPrompt = `${agent.systemPrompt}\n\n${agent.skills}`;
+  // Build full prompt with tool skills (DM version)
+  const toolConfigs = await prisma.toolConfig.findMany({ where: { isEnabled: true } });
+  const enabledToolNames = toolConfigs.map((tc: { toolName: string }) => tc.toolName);
+  const toolSkills = getToolSkills(enabledToolNames);
+  const systemPrompt = toolSkills
+    ? `${agent.systemPrompt}\n\n${toolSkills}`
+    : agent.systemPrompt;
   
   try {
     const apiUrl = provider.apiUrl;

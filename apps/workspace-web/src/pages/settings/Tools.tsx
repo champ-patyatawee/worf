@@ -3,7 +3,7 @@ import { Button, Input } from '@/components/common';
 import { cn } from '@/utils/cn';
 import { api } from '@/services/api';
 import type { ToolDefinition } from '@/types';
-import { Save, Loader2 } from 'lucide-react';
+import { Save, Loader2, ChevronDown, ChevronRight, FileText } from 'lucide-react';
 
 export function Tools() {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
@@ -12,6 +12,7 @@ export function Tools() {
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
 
   useEffect(() => {
     loadTools();
@@ -102,12 +103,16 @@ export function Tools() {
             Configure tools available to all agents
           </p>
         </div>
-        {dirty && (
-          <Button onClick={handleSaveAll} isLoading={saving}>
-            <Save className="h-4 w-4 mr-2" />
-            Save Global Settings
-          </Button>
-        )}
+        <Button
+          onClick={handleSaveAll}
+          isLoading={saving}
+          size="sm"
+          disabled={!dirty}
+          variant={dirty ? 'primary' : 'secondary'}
+        >
+          <Save className="h-3.5 w-3.5 mr-1.5" />
+          Save Settings
+        </Button>
       </div>
 
       {error && (
@@ -254,6 +259,32 @@ export function Tools() {
                 </div>
               </div>
             )}
+
+            {/* Agent Instructions (skill) */}
+            <div className="border-t-2 border-[var(--color-border-secondary)]">
+              <button
+                type="button"
+                onClick={() => setExpandedSkill(expandedSkill === tool.name ? null : tool.name)}
+                className="flex items-center gap-2 w-full px-5 py-3 text-left text-xs font-semibold text-text-tertiary uppercase hover:bg-bg-hover transition-colors-fast"
+              >
+                {expandedSkill === tool.name ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+                <FileText className="h-3 w-3" />
+                Agent Instructions (skill)
+              </button>
+              {expandedSkill === tool.name && tool.skill && (
+                <div className="px-5 pb-4">
+                  <div className="bg-bg-primary border-2 border-[var(--color-border-primary)] rounded-[var(--radius-md)] p-4 max-h-64 overflow-y-auto">
+                    <pre className="text-xs text-text-secondary font-mono whitespace-pre-wrap leading-relaxed">
+                      {tool.skill}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>

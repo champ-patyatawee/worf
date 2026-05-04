@@ -98,6 +98,30 @@ export const webfetchTool: ToolDefinition = {
     timeout: 15000,
     userAgent: 'Worf-Tool/1.0',
   },
+  skill: `## Web Fetch Tool
+
+You have access to the **Web Fetch** tool which can retrieve content from web pages.
+
+### When to use it
+- The user shares a URL and asks what the page contains
+- The user asks a question that requires information from a specific webpage
+- You need to verify, extract, or summarize content from a link
+
+### How it works
+The system automatically detects URLs in the user's message. When a URL is present, the page content is fetched and included in your context as:
+
+\`\`\`
+[Web Fetch Result — page content fetched for context]:
+Title: Page Title
+...page content...
+\`\`\`
+
+### Best practices
+- When the user provides a URL, read the fetched content before answering
+- Use the page title and content to give accurate, informed responses
+- If the content is truncated, summarize what's available and mention the page source
+- If fetching fails, let the user know the page couldn't be accessed
+`,
   handler: webfetchHandler,
 };
 

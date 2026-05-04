@@ -157,6 +157,7 @@ export interface ToolDefinition {
   defaultConfig: Record<string, unknown>;
   isEnabled: boolean;
   config: Record<string, unknown>;
+  skill?: string;
 }
 
 export interface ToolConfigUpdate {

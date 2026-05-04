@@ -5,7 +5,6 @@ export interface CreateAgentInput {
   displayName?: string;
   description?: string;
   systemPrompt: string;
-  skills: string;
   avatar?: string;
   providerId?: string;
   agentUrl?: string;
@@ -18,7 +17,6 @@ export interface UpdateAgentInput {
   displayName?: string;
   description?: string;
   systemPrompt?: string;
-  skills?: string;
   avatar?: string;
   isActive?: boolean;
   providerId?: string;
@@ -57,7 +55,6 @@ export class AgentService {
         displayName: data.displayName,
         description: data.description,
         systemPrompt: data.systemPrompt,
-        skills: data.skills,
         avatar: data.avatar,
         providerId: data.providerId,
         agentUrl: data.agentUrl,
@@ -75,7 +72,6 @@ export class AgentService {
     if (data.displayName !== undefined) updateData.displayName = data.displayName;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.systemPrompt !== undefined) updateData.systemPrompt = data.systemPrompt;
-    if (data.skills !== undefined) updateData.skills = data.skills;
     if (data.avatar !== undefined) updateData.avatar = data.avatar;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
     if (data.providerId !== undefined) updateData.providerId = data.providerId;

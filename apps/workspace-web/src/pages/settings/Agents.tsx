@@ -18,7 +18,6 @@ interface Agent {
   displayName?: string;
   description?: string;
   systemPrompt: string;
-  skills: string;
   avatar?: string;
   isActive: boolean;
   providerId?: string;
@@ -34,7 +33,6 @@ interface AgentFormData {
   displayName: string;
   description: string;
   systemPrompt: string;
-  skills: string;
   providerId: string;
   agentUrl: string;
   agentType: string;
@@ -121,7 +119,6 @@ export function Agents() {
         displayName: data.displayName,
         description: data.description,
         systemPrompt: data.systemPrompt,
-        skills: data.skills,
         providerId: data.providerId || null,
         agentUrl: data.agentUrl || null,
         agentType: data.agentType || null,
@@ -260,7 +257,6 @@ function AgentModal({
     displayName: agent?.displayName || '',
     description: agent?.description || '',
     systemPrompt: agent?.systemPrompt || '',
-    skills: agent?.skills || '',
     providerId: agent?.providerId || '',
     agentUrl: agent?.agentUrl || '',
     agentType: agent?.agentType || 'embedded',
@@ -268,7 +264,7 @@ function AgentModal({
     webViewUrl: agent?.webViewUrl || '',
   });
 
-  const [activeTab, setActiveTab] = useState<'config' | 'prompt' | 'skills'>('config');
+  const [activeTab, setActiveTab] = useState<'config' | 'prompt'>('config');
 
   // Update form when agent changes
   useEffect(() => {
@@ -277,7 +273,6 @@ function AgentModal({
       displayName: agent?.displayName || '',
       description: agent?.description || '',
       systemPrompt: agent?.systemPrompt || '',
-      skills: agent?.skills || '',
       providerId: agent?.providerId || '',
       agentUrl: agent?.agentUrl || '',
       agentType: agent?.agentType || 'embedded',
@@ -330,18 +325,6 @@ function AgentModal({
           )}
         >
           System Prompt
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('skills')}
-          className={cn(
-            'px-4 py-2 text-sm font-extrabold border-b-2 -mb-px transition-colors-fast',
-            activeTab === 'skills'
-              ? 'border-[var(--color-accent-primary)] text-[var(--color-accent-primary)] bg-[var(--color-accent-subtle)]'
-              : 'border-transparent text-text-tertiary hover:text-text-primary hover:bg-bg-hover'
-          )}
-        >
-          Skills
         </button>
       </div>
 
@@ -443,21 +426,6 @@ function AgentModal({
               onChange={(e) => setFormData({ ...formData, systemPrompt: e.target.value })}
               className="w-full h-48 px-3 py-2 bg-[var(--color-bg-secondary)] border-2 border-[var(--color-border-primary)] rounded-[var(--radius-md)] text-[var(--color-text-primary)] text-sm font-mono resize-none focus:outline-none focus:shadow-[4px_4px_0px_#0D0D0D] focus:border-[var(--color-accent-primary)]"
               placeholder={`You are AgentKanban, a helpful assistant for managing Kanban boards.\n\nWhen a user asks to create a task:\n1. Ask for the task title\n2. Create the card\n3. Confirm to the user`}
-            />
-          </div>
-        )}
-
-        {activeTab === 'skills' && (
-          <div>
-            <label className="block text-sm font-medium text-text-primary mb-1">Skills (skill.md)</label>
-            <p className="text-xs text-text-tertiary mb-2">
-              Documentation of what the agent can do. Include API endpoints, examples, etc.
-            </p>
-            <textarea
-              value={formData.skills}
-              onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
-              className="w-full h-48 px-3 py-2 bg-[var(--color-bg-secondary)] border-2 border-[var(--color-border-primary)] rounded-[var(--radius-md)] text-[var(--color-text-primary)] text-sm font-mono resize-none focus:outline-none focus:shadow-[4px_4px_0px_#0D0D0D] focus:border-[var(--color-accent-primary)]"
-              placeholder={`# AgentKanban Skills\n\n## Create Task\nPOST /api/cards\n{ listId, title, priority }\n\n## Move Task\nPOST /api/cards/:id/move\n{ listId }`}
             />
           </div>
         )}

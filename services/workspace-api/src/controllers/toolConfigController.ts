@@ -12,13 +12,14 @@ export class ToolConfigController {
     try {
       const tools = getAllTools();
       const results = await Promise.all(
-        tools.map(async (tool: { name: string; displayName: string; description: string; icon: string; inputSchema: any; defaultConfig: any }) => ({
+        tools.map(async (tool: { name: string; displayName: string; description: string; icon: string; inputSchema: any; defaultConfig: any; skill: any }) => ({
           name: tool.name,
           displayName: tool.displayName,
           description: tool.description,
           icon: tool.icon,
           inputSchema: tool.inputSchema,
           defaultConfig: tool.defaultConfig,
+          skill: tool.skill,
           ...(await loadToolConfig(tool.name)),
         }))
       );
