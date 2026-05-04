@@ -1,4 +1,4 @@
-import { LayoutDashboard, MessageSquare, StickyNote, FolderKanban, Bot } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, StickyNote, FolderKanban, Bot, Settings } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { cn } from '@/utils/cn';
 import { useUIStore } from '@/stores/uiStore';
@@ -92,7 +92,27 @@ export function IconSidebar() {
         })}
       </nav>
 
-      <div className="mt-auto mb-2">
+      <div className="mt-auto flex flex-col items-center gap-2 mb-2">
+        {/* Settings */}
+        <button
+          onClick={() => {
+            setActiveNavTab('settings');
+            setSidebarCollapsed(true);
+            if (!location.pathname.startsWith('/settings')) {
+              navigate('/settings');
+            }
+          }}
+          className={cn(
+            'flex items-center justify-center w-12 h-12 rounded-[var(--radius-md)] transition-all duration-150 border-2',
+            activeNavTab === 'settings'
+              ? 'bg-[var(--color-accent-primary)] text-white border-[var(--color-border-primary)] shadow-[3px_3px_0px_rgba(0,0,0,0.2)]'
+              : 'bg-transparent text-[var(--color-text-secondary)] border-transparent hover:bg-[var(--color-bg-hover)] hover:border-[var(--color-border-primary)]'
+          )}
+          aria-label="Settings"
+        >
+          <Settings className="h-5 w-5" />
+        </button>
+
         <UserDropdown position="right" compact />
       </div>
     </aside>

@@ -80,6 +80,22 @@ async function main() {
 
   console.log('✅ Added admin to channels');
 
+  // Seed tool configs
+  const webfetchConfig = await prisma.toolConfig.upsert({
+    where: { toolName: 'webfetch' },
+    update: {},
+    create: {
+      toolName: 'webfetch',
+      isEnabled: true,
+      config: {
+        maxChars: 10000,
+        timeout: 15000,
+        userAgent: 'Worf-Tool/1.0',
+      },
+    },
+  });
+  console.log('✅ Seeded webfetch tool config');
+
   console.log('✨ Database seeding completed!');
 }
 

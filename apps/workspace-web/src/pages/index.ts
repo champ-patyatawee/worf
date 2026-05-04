@@ -14,3 +14,4 @@ export { SettingsLayout } from '@/components/layout/SettingsLayout';
 export { AIProvider } from './settings/AIProvider';
 export { Agents } from './settings/Agents';
 export { Note } from './settings/Note';
+export { Tools } from './settings/Tools';

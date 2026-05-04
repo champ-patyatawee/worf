@@ -2,13 +2,15 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 type ModalType = 'createChannel' | 'inviteUser' | 'channelSettings' | null;
-type NavTab = 'dashboard' | 'chat' | 'note' | 'kanban' | 'agent';
+type NavTab = 'dashboard' | 'chat' | 'note' | 'kanban' | 'agent' | 'settings';
 
 function getInitialNavTab(): NavTab {
   const path = window.location.pathname;
+  if (path.startsWith('/dashboard')) return 'dashboard';
   if (path.startsWith('/notes')) return 'note';
   if (path.startsWith('/kanban')) return 'kanban';
   if (path.startsWith('/agents')) return 'agent';
+  if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/channels') || path.startsWith('/messages') || path.startsWith('/search')) return 'chat';
   return 'chat';
 }

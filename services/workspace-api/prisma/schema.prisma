@@ -243,3 +243,16 @@ model AIProvider {
   @@index([isActive])
   @@index([isDefault])
 }
+
+// Tool Config (global tool settings)
+model ToolConfig {
+  id        String   @id @default(uuid())
+  toolName  String   @unique   // "webfetch"
+  isEnabled Boolean  @default(true)
+  config    Json     // { "maxChars": 10000, "timeout": 15000, "userAgent": "Worf-Tool/1.0" }
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([toolName])
+  @@index([isEnabled])
+}

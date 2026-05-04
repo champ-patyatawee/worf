@@ -15,6 +15,7 @@ interface AgentMessageInputProps {
   className?: string;
   maxImageSizeMB?: number;
   maxImages?: number;
+  toolBar?: React.ReactNode; // Tool buttons rendered inside the input bar
 }
 
 interface UploadsState {
@@ -30,6 +31,7 @@ export const AgentMessageInput = memo(forwardRef<HTMLTextAreaElement, AgentMessa
     className,
     maxImageSizeMB = 10,
     maxImages = 5,
+    toolBar,
   }, ref) => {
     const [content, setContent] = useState('');
     const [uploads, setUploads] = useState<UploadsState>({});
@@ -313,6 +315,11 @@ export const AgentMessageInput = memo(forwardRef<HTMLTextAreaElement, AgentMessa
                   onImageSelect={() => setShowImageUpload(true)}
                   onLinkSubmit={handleSendLink}
                 />
+                {toolBar && (
+                  <div className="flex flex-row items-center min-w-0 gap-0.5 ml-1">
+                    {toolBar}
+                  </div>
+                )}
                 <div className="flex flex-row items-center min-w-0 gap-1" />
               </div>
 

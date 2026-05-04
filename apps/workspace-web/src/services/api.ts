@@ -1,4 +1,4 @@
-import type { AuthResponse, Channel, ChatImage, LinkPreview, LinkPreviewResponse, Message, PresignedUrlResponse, User } from '@/types';
+import type { AuthResponse, Channel, ChatImage, LinkPreview, LinkPreviewResponse, Message, PresignedUrlResponse, User, ToolDefinition, ToolConfigUpdate } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -354,6 +354,24 @@ class ApiService {
     if (options?.offset) params.offset = String(options.offset);
     if (options?.mode) params.mode = options.mode;
     return this.get<{ success: boolean; data: any[]; total: number; query: string; mode?: string }>('/api/search', params);
+  }
+
+  // Tool endpoints
+  async getAvailableTools(): Promise<ToolDefinition[]> {
+    const response = await this.get<{ success: boolean; data: ToolDefinition[] }>('/api/tools');
+    return response.data;
+  }
+
+  async updateToolConfig(toolName: string, data: ToolConfigUpdate): Promise<void> {
+    await this.put(`/api/tools/${toolName}/config`, data);
+  }
+
+  async executeTool(
+    agentName: string,
+    tool: string,
+    params: Record<string, unknown>
+  ): Promise<{ success: boolean; data: any }> {
+    return this.post(`/api/agents/${agentName}/execute-tool`, { tool, params });
   }
 }
 

@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout';
-import { Login, Register, Channel, DirectMessage, DirectMessages, ProfileSettings, SettingsLayout, AIProvider, Agents, Note, Search, SearchResult, Notes, Kanban, AgentChat, Dashboard } from '@/pages';
+import { Login, Register, Channel, DirectMessage, DirectMessages, ProfileSettings, SettingsLayout, AIProvider, Agents, Note, Tools, Search, SearchResult, Notes, Kanban, AgentChat, Dashboard } from '@/pages';
 import { AgentWebViewModal } from '@/components/modals/AgentWebViewModal';
 import { usePresence } from '@/hooks/usePresence';
 import { useUIStore } from '@/stores/uiStore';
@@ -36,14 +36,15 @@ function App() {
             <Route path="/search" element={<Search />} />
             <Route path="/search-result/:messageId" element={<SearchResult />} />
             <Route path="/profile-settings" element={<ProfileSettings />} />
-          </Route>
 
-          {/* Settings routes (admin only) */}
-          <Route path="/settings" element={<SettingsLayout />}>
-            <Route index element={<Navigate to="/settings/ai" replace />} />
-            <Route path="ai" element={<AIProvider />} />
-            <Route path="agents" element={<Agents />} />
-            <Route path="note" element={<Note />} />
+            {/* Settings routes (admin only) */}
+            <Route path="/settings" element={<SettingsLayout />}>
+              <Route index element={<Navigate to="/settings/ai" replace />} />
+              <Route path="ai" element={<AIProvider />} />
+              <Route path="agents" element={<Agents />} />
+              <Route path="note" element={<Note />} />
+              <Route path="tools" element={<Tools />} />
+            </Route>
           </Route>
 
           {/* Default redirect */}

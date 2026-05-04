@@ -20,11 +20,11 @@
     "test:e2e": "jest --config jest.e2e.config.cjs --runInBand"
   },
   "dependencies": {
+    "@esbuild/darwin-x64": "^0.28.0",
     "@kubernetes/client-node": "^0.20.0",
     "@prisma/client": "^5.10.0",
     "@types/uuid": "^10.0.0",
     "@xenova/transformers": "^2.17.2",
-    "pg-boss": "^12.15.0",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -33,6 +33,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.0",
     "node-pty": "^1.1.0",
+    "pg-boss": "^12.15.0",
     "sharp": "^0.34.5",
     "socket.io": "^4.7.4",
     "spdy": "^4.0.2",

@@ -32,6 +32,8 @@ export function AppLayout() {
       setActiveNavTab('chat');
     } else if (path.startsWith('/agents')) {
       setActiveNavTab('agent');
+    } else if (path.startsWith('/settings')) {
+      setActiveNavTab('settings');
     }
   }, [location.pathname, setActiveNavTab]);
 

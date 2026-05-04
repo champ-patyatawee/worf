@@ -2,14 +2,14 @@ import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import { Avatar } from '@/components/common';
 import { MessageList, EnhancedMessage } from '@/components/chat';
-import { AgentMessageInput } from '@/components/agents';
+import { AgentMessageInput, ToolBar } from '@/components/agents';
 import { useUserStore } from '@/stores/userStore';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
 import { socketService } from '@/services/socket';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { parseDMSlug, slugify } from '@/utils/slug';
-import type { Message, ImageUpload, ChatImage } from '@/types';
+import type { Message, ImageUpload, ChatImage, ToolDefinition } from '@/types';
 
 export function AgentChat() {
   const { agentSlug } = useParams<{ agentSlug: string }>();
@@ -26,7 +26,23 @@ export function AgentChat() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [sendTrigger, setSendTrigger] = useState(0);
+  const [tools, setTools] = useState<ToolDefinition[]>([]);
+  const [activeTool, setActiveTool] = useState<string | null>(null);
   const currentUserId = useAuthStore((state) => state.user?.id);
+
+  // Load tools when agent is available (for tool bar)
+  useEffect(() => {
+    loadTools();
+  }, []);
+
+  const loadTools = async () => {
+    try {
+      const data = await api.getAvailableTools();
+      setTools(data.filter((t) => t.isEnabled));
+    } catch (err) {
+      console.error('Failed to load tools:', err);
+    }
+  };
 
   useEffect(() => {
     if (agentId) {
@@ -123,6 +139,50 @@ export function AgentChat() {
 
   const handleSendMessage = async (content: string, uploads?: ImageUpload[]) => {
     if (!agentId) return;
+
+    const agentName = agentUser?.name || 'Agent';
+    const task = content.trim();
+    const toolsEnabled = activeTool === 'webfetch';
+    let toolContext = '';
+
+    // If Web Fetch is enabled, extract URL from message and auto-fetch silently
+    if (toolsEnabled) {
+      const urlMatch = content.match(/https?:\/\/[^\s]+/);
+      const url = urlMatch ? urlMatch[0] : null;
+      if (url) {
+        try {
+          const response = await api.executeTool(agentName, 'webfetch', { url });
+          if (response.success && response.data) {
+            toolContext = response.data.content || '';
+          }
+        } catch (err) {
+          console.error('Web fetch failed:', err);
+        }
+      }
+    }
+
+    // Build history
+    const history: { role: string; content: string }[] = [];
+    const recentMsgs = messages.slice(-20);
+    for (const msg of recentMsgs) {
+      const msgUser = msg.user;
+      if (msgUser?.id === currentUserId) {
+        history.push({ role: 'user', content: msg.content });
+      } else if (msgUser?.id === agentId || msgUser?.role === 'agent' || msgUser?.email?.startsWith('agent-')) {
+        history.push({ role: 'assistant', content: msg.content });
+      }
+    }
+
+    // Build the task: if tools are enabled, tell the agent about the tool + include fetched content
+    let enhancedTask = task;
+    if (toolsEnabled) {
+      const toolInstructions = `\n\n[Available Tool: Web Fetch]\nYou have access to the Web Fetch tool which can fetch URL content. When the user shares a link or asks about a webpage, use the fetched content below to answer their question.`;
+      const fetchedContent = toolContext
+        ? `\n\n[Web Fetch Result — page content fetched for context]:\n${toolContext}`
+        : '';
+      enhancedTask = `${task}${toolInstructions}${fetchedContent}`;
+    }
+
     try {
       let imageIds: string[] | undefined;
       if (uploads && uploads.length > 0) {
@@ -130,20 +190,6 @@ export function AgentChat() {
           .filter((u) => u.result)
           .map((u) => u.result!.id)
           .filter((id): id is string => id !== undefined);
-      }
-
-      const agentName = agentUser?.name || 'Agent';
-      const task = content.trim();
-
-      const history: { role: string; content: string }[] = [];
-      const recentMsgs = messages.slice(-20);
-      for (const msg of recentMsgs) {
-        const msgUser = msg.user;
-        if (msgUser?.id === currentUserId) {
-          history.push({ role: 'user', content: msg.content });
-        } else if (msgUser?.id === agentId || msgUser?.role === 'agent' || msgUser?.email?.startsWith('agent-')) {
-          history.push({ role: 'assistant', content: msg.content });
-        }
       }
 
       const response = await api.sendDMWithImages(agentId, content, imageIds);
@@ -155,11 +201,12 @@ export function AgentChat() {
         setSendTrigger((prev) => prev + 1);
 
         const { streamAgentChat } = await import('@/services/agentService');
+
         try {
           let agentFullResponse = '';
           await streamAgentChat(
             agentName,
-            task,
+            enhancedTask,
             history,
             (chunk, done) => {
               agentFullResponse += chunk;
@@ -192,6 +239,10 @@ export function AgentChat() {
       console.error('Failed to send link:', err);
     }
   };
+
+  const handleToolClick = useCallback((toolName: string) => {
+    setActiveTool((prev) => (prev === toolName ? null : toolName));
+  }, []);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!agentId) return;
@@ -294,6 +345,13 @@ export function AgentChat() {
         onSendLink={handleSendLink}
         onImageUpload={handleImageUpload}
         placeholder={`Message ${agentUser.name}...`}
+        toolBar={
+          <ToolBar
+            tools={tools}
+            activeTool={activeTool}
+            onToolClick={handleToolClick}
+          />
+        }
       />
     </div>
   );

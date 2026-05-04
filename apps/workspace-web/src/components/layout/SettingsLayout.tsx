@@ -1,12 +1,13 @@
 import { Outlet, Navigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/utils/cn';
-import { Settings, Bot, FileText, ChevronRight } from 'lucide-react';
+import { Settings, Bot, FileText, ChevronRight, Wrench } from 'lucide-react';
 
 const settingsTabs = [
   { id: 'ai', label: 'AI Provider', icon: Bot, path: '/settings/ai' },
   { id: 'agents', label: 'Agents', icon: Bot, path: '/settings/agents' },
   { id: 'note', label: 'Note LLM', icon: FileText, path: '/settings/note' },
+  { id: 'tools', label: 'Tools', icon: Wrench, path: '/settings/tools' },
 ];
 
 export function SettingsLayout() {

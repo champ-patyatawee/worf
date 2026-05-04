@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { agentController } from '../controllers/agentController';
 import { chatWithAgent, chatWithAgentDM } from '../controllers/agentChatController';
+import { toolExecutionController } from '../controllers/toolExecutionController';
 import { authenticate } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 
@@ -76,6 +77,15 @@ router.post(
   '/:name/dm',
   authenticate,
   asyncHandler((req, res) => chatWithAgentDM(req, res))
+);
+
+/**
+ * POST /api/agents/:name/execute-tool - Execute a tool for this agent
+ */
+router.post(
+  '/:name/execute-tool',
+  authenticate,
+  asyncHandler((req, res) => toolExecutionController.executeTool(req, res))
 );
 
 export default router;

@@ -138,6 +138,32 @@ export interface PresignedUrlResponse {
   key: string;
 }
 
+// Tool types
+export interface ToolDefinition {
+  name: string;
+  displayName: string;
+  description: string;
+  icon: string;
+  inputSchema: {
+    type: 'object';
+    properties: Record<string, {
+      type: string;
+      description: string;
+      default?: unknown;
+      enum?: string[];
+    }>;
+    required: string[];
+  };
+  defaultConfig: Record<string, unknown>;
+  isEnabled: boolean;
+  config: Record<string, unknown>;
+}
+
+export interface ToolConfigUpdate {
+  isEnabled?: boolean;
+  config?: Record<string, unknown>;
+}
+
 export interface LinkPreviewResponse {
   title?: string;
   description?: string;
