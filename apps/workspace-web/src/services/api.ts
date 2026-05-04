@@ -176,6 +176,10 @@ class ApiService {
     return this.put<void>(`/api/dm/${recipientId}/read`, {});
   }
 
+  async deleteDMConversation(recipientId: string): Promise<void> {
+    return this.delete<void>(`/api/dm/${recipientId}`);
+  }
+
   // Image upload endpoints
   private async requestWithUpload<T>(
     endpoint: string,

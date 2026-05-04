@@ -7,7 +7,7 @@ import { useUserStore } from '@/stores/userStore';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
 import { socketService } from '@/services/socket';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import { parseDMSlug, slugify } from '@/utils/slug';
 import type { Message, ImageUpload, ChatImage } from '@/types';
 
@@ -193,6 +193,18 @@ export function AgentChat() {
     }
   };
 
+  const handleDeleteConversation = useCallback(async () => {
+    if (!agentId) return;
+    if (!window.confirm(`Delete conversation with ${agentUser?.name}?`)) return;
+    try {
+      await api.deleteDMConversation(agentId);
+      setMessages([]);
+      setHasMore(true);
+    } catch (err) {
+      console.error('Failed to delete conversation:', err);
+    }
+  }, [agentId, agentUser]);
+
   const handleImageUpload = useCallback(async (
     file: File,
     onProgress: (progress: number) => void
@@ -255,6 +267,14 @@ export function AgentChat() {
           <h2 className="font-semibold text-[15px] truncate" style={{ color: 'var(--color-text-primary)' }}>{agentUser.name}</h2>
           <p className="text-xs capitalize" style={{ color: 'var(--color-text-tertiary)' }}>AI Agent</p>
         </div>
+        <button
+          onClick={handleDeleteConversation}
+          className="p-2 rounded-md transition-colors-fast hover:bg-[var(--color-bg-hover)]"
+          style={{ color: 'var(--color-text-tertiary)' }}
+          title="Delete conversation"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
       </header>
 
       <MessageList

@@ -67,7 +67,7 @@ export function MessageList({
   const isLoadingOlderRef = useRef(false);
   const hasMoreRef = useRef(hasMore);
   const isAtTopRef = useRef(false);
-  const prevMessagesLengthRef = useRef(messages.length);
+  const lastMessageIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     hasMoreRef.current = hasMore;
@@ -121,10 +121,22 @@ export function MessageList({
 
   // Detect new messages arriving while scrolled up
   useEffect(() => {
-    const prevLen = prevMessagesLengthRef.current;
-    prevMessagesLengthRef.current = messages.length;
-    if (messages.length > prevLen && !isAtBottom) {
-      setNewMessageCount((prev) => prev + (messages.length - prevLen));
+    if (messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    const lastKnownId = lastMessageIdRef.current;
+
+    if (!lastKnownId) {
+      // Initial load — set reference, don't count
+      lastMessageIdRef.current = lastMsg.id;
+      return;
+    }
+
+    if (lastMsg.id !== lastKnownId) {
+      // Genuinely new message at the bottom (appended via socket)
+      lastMessageIdRef.current = lastMsg.id;
+      if (!isAtBottom) {
+        setNewMessageCount((prev) => prev + 1);
+      }
     }
   }, [messages, isAtBottom]);
 

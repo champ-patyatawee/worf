@@ -124,6 +124,20 @@ export class DmService {
   }
 
   /**
+   * Delete all messages in a DM conversation between two users
+   */
+  async deleteConversation(userId: string, otherUserId: string): Promise<void> {
+    await prisma.directMessage.deleteMany({
+      where: {
+        OR: [
+          { userId, recipientId: otherUserId },
+          { userId: otherUserId, recipientId: userId },
+        ],
+      },
+    });
+  }
+
+  /**
    * Mark a specific DM message as read
    */
   async markMessageAsRead(messageId: string, userId: string): Promise<void> {

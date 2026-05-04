@@ -33,4 +33,13 @@ router.put(
   asyncHandler((req, res) => dmController.markAsRead(req, res))
 );
 
+/**
+ * DELETE /api/dm/:recipientId - Delete conversation with a user
+ */
+router.delete(
+  '/:recipientId',
+  authenticate,
+  asyncHandler((req, res) => dmController.deleteConversation(req, res))
+);
+
 export default router;
