@@ -23,6 +23,7 @@ import toolRoutes from './routes/tools';
 
 // Register built-in tools (auto-registers on import)
 import './tools/webfetch';
+import './tools/imageGen';
 
 const app = express();
 const httpServer = createServer(app);

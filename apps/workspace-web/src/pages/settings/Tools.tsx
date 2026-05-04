@@ -13,9 +13,11 @@ export function Tools() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
+  const [providers, setProviders] = useState<any[]>([]);
 
   useEffect(() => {
     loadTools();
+    loadProviders();
   }, []);
 
   const loadTools = async () => {
@@ -29,6 +31,15 @@ export function Tools() {
       setError('Failed to load tools. Is the server running?');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProviders = async () => {
+    try {
+      const data = await api.getAIProviders();
+      setProviders(data);
+    } catch (err) {
+      console.error('Failed to load providers:', err);
     }
   };
 
@@ -255,6 +266,26 @@ export function Tools() {
                         </p>
                       </div>
                     </>
+                  )}
+                  {tool.name === 'image_gen' && (
+                    <div className="md:col-span-2 lg:col-span-3">
+                      <label className="block text-xs font-medium text-text-primary mb-1">
+                        AI Provider
+                      </label>
+                      <select
+                        value={(tool.config.providerId as string) || ''}
+                        onChange={(e) => handleConfigChange(tool.name, 'providerId', e.target.value)}
+                        className="w-full px-3 py-2 h-11 text-sm rounded-[var(--radius-md)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-secondary)] text-text-primary hover:border-text-secondary focus:border-[var(--color-accent-primary)] focus:outline-none focus:shadow-[4px_4px_0px_#0D0D0D]"
+                      >
+                        <option value="">Select a provider...</option>
+                        {providers.map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.name} ({p.provider} - {p.model})</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-text-tertiary mt-1">
+                        Uses the provider's configured model for image generation
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>

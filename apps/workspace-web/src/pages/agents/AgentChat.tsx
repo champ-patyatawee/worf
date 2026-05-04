@@ -142,22 +142,30 @@ export function AgentChat() {
 
     const agentName = agentUser?.name || 'Agent';
     const task = content.trim();
-    const toolsEnabled = activeTool === 'webfetch';
-    let toolContext = '';
+    let toolResultContent = '';
 
-    // If Web Fetch is enabled, extract URL from message and auto-fetch silently
-    if (toolsEnabled) {
-      const urlMatch = content.match(/https?:\/\/[^\s]+/);
-      const url = urlMatch ? urlMatch[0] : null;
-      if (url) {
-        try {
-          const response = await api.executeTool(agentName, 'webfetch', { url });
-          if (response.success && response.data) {
-            toolContext = response.data.content || '';
-          }
-        } catch (err) {
-          console.error('Web fetch failed:', err);
+    // Execute the active tool (if any)
+    if (activeTool) {
+      try {
+        let toolParams: Record<string, unknown> = {};
+
+        if (activeTool === 'webfetch') {
+          const urlMatch = content.match(/https?:\/\/[^\s]+/);
+          const url = urlMatch ? urlMatch[0] : null;
+          if (!url) return;
+          toolParams = { url };
+        } else if (activeTool === 'image_gen') {
+          toolParams = { prompt: task };
         }
+
+        if (Object.keys(toolParams).length > 0) {
+          const response = await api.executeTool(agentName, activeTool, toolParams);
+          if (response.success && response.data) {
+            toolResultContent = response.data.content || '';
+          }
+        }
+      } catch (err) {
+        console.error(`Tool ${activeTool} failed:`, err);
       }
     }
 
@@ -173,14 +181,23 @@ export function AgentChat() {
       }
     }
 
-    // Build the task: if tools are enabled, tell the agent about the tool + include fetched content
+    // Build enhanced task with tool context
     let enhancedTask = task;
-    if (toolsEnabled) {
-      const toolInstructions = `\n\n[Available Tool: Web Fetch]\nYou have access to the Web Fetch tool which can fetch URL content. When the user shares a link or asks about a webpage, use the fetched content below to answer their question.`;
-      const fetchedContent = toolContext
-        ? `\n\n[Web Fetch Result — page content fetched for context]:\n${toolContext}`
-        : '';
-      enhancedTask = `${task}${toolInstructions}${fetchedContent}`;
+    if (activeTool === 'webfetch' && toolResultContent) {
+      enhancedTask = `${task}\n\n[Web Fetch Result — page content fetched for context]:\n${toolResultContent}`;
+    } else if (activeTool === 'image_gen' && toolResultContent) {
+      // For image gen, save the result as a visible message in the chat
+      try {
+        await api.sendDM(agentId, toolResultContent);
+        setMessages((prev) => [...prev, {
+          id: `img-${Date.now()}`,
+          channelId: '',
+          userId: 'agent-tool',
+          content: toolResultContent,
+          createdAt: new Date(),
+        } as Message]);
+      } catch (_) {}
+      enhancedTask = `${task}\n\nThe image was generated and shown above. You can discuss it with the user.`;
     }
 
     try {
