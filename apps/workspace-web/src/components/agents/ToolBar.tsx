@@ -2,10 +2,11 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/utils/cn';
 import type { ToolDefinition } from '@/types';
-import { Globe, Wrench } from 'lucide-react';
+import { Globe, Image, Wrench } from 'lucide-react';
 
 export const toolIconMap: Record<string, ReactNode> = {
   webfetch: <Globe className="h-4 w-4" />,
+  image_gen: <Image className="h-4 w-4" />,
 };
 
 function getToolIcon(toolName: string): ReactNode {
