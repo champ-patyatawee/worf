@@ -168,7 +168,7 @@ export const imageGenTool: ToolDefinition = {
   },
   skill: `## Image Generation Tool
 
-You have access to the **Image Gen** tool which can generate images from text descriptions.
+You can generate images from text descriptions. The generated image is **automatically displayed** in the chat by the system.
 
 ### When to use it
 - The user asks you to create, draw, or generate an image
@@ -176,6 +176,11 @@ You have access to the **Image Gen** tool which can generate images from text de
 
 ### How it works
 The system sends your description to an AI image model and returns the image in the chat.
+
+### Important
+- The image is **automatically shown** in the chat — you do NOT need to include any image URLs, markdown images, or image references in your response
+- Simply acknowledge the image and discuss it with the user
+- Do NOT generate or repeat image URLs — the system handles all display
 
 ### Best practices
 - Write detailed, descriptive prompts with subject and style
