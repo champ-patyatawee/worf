@@ -1,5 +1,7 @@
 import { registerTool, type ToolDefinition } from './registry';
 import { PrismaClient } from '@prisma/client';
+import { imageService } from '../services/imageService';
+import { messageService } from '../services/messageService';
 
 const prisma = new PrismaClient();
 
@@ -12,10 +14,16 @@ async function imageGenHandler(
   if (!prompt) throw new Error('Prompt is required');
 
   const providerId = config.providerId as string;
+  const userId = (params.userId as string) || 'system';
+  const agentId = (params.agentId as string) || '';
 
-  const provider = providerId
+  // Look up the configured provider, or fall back to first active provider
+  let provider = providerId
     ? await prisma.aIProvider.findUnique({ where: { id: providerId } })
     : null;
+  if (!provider) {
+    provider = await prisma.aIProvider.findFirst({ where: { isActive: true } });
+  }
 
   const model = provider?.model;
   const apiKey = provider?.apiKey;
@@ -24,34 +32,120 @@ async function imageGenHandler(
   if (!model) throw new Error('Provider has no model configured. Go to Settings > AI Provider.');
   if (!apiKey || !apiUrl) throw new Error('Provider not fully configured.');
 
-  const response = await fetch(`${apiUrl}/images/generations`, {
+  // Generate image via chat completions endpoint
+  const imageUrl = await generateViaChatEndpoint(apiUrl, apiKey, model, prompt);
+
+  if (!imageUrl) throw new Error('No image URL returned from provider');
+
+  // Download the generated image from the external URL
+  console.log(`[ImageGen] Downloading from: ${imageUrl.slice(0, 60)}...`);
+  const imageRes = await fetch(imageUrl);
+  if (!imageRes.ok) {
+    throw new Error(`Failed to download image: ${imageRes.statusText}`);
+  }
+  const imageBuffer = Buffer.from(await imageRes.arrayBuffer());
+
+  // Upload to our own server — saves locally + creates ChatImage record
+  const uploaded = await imageService.uploadImage(imageBuffer, userId);
+
+  // Persist the result as a DM message from the agent (so it survives refresh)
+  let savedMessageId = '';
+  if (agentId && userId) {
+    try {
+      const msg = await messageService.sendDMMessage(agentId, userId, `![Generated Image](${uploaded.url})\n\n_${prompt}_`);
+      savedMessageId = (msg as any)?.id || '';
+    } catch (err) {
+      console.error('[ImageGen] Failed to save result message:', err);
+    }
+  }
+
+  return {
+    type: 'image' as const,
+    content: `![Generated Image](${uploaded.url})\n\n_${prompt}_`,
+    data: {
+      imageUrl: uploaded.url,
+      prompt,
+      model,
+      imageId: uploaded.id,
+      savedMessageId,
+    },
+    timing: Date.now() - startTime,
+  };
+}
+
+/**
+ * Generate an image using the chat completions endpoint.
+ * Works with providers like OpenRouter that return images via chat.
+ * The apiUrl from provider config is already the full chat completions URL.
+ */
+async function generateViaChatEndpoint(
+  apiUrl: string,
+  apiKey: string,
+  model: string,
+  prompt: string
+): Promise<string> {
+  console.log(`[ImageGen] Chat completions endpoint: ${apiUrl}`);
+
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ prompt, model, n: 1 }),
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    }),
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Image API error: ${error}`);
+    // If this is a 404 NotFound, the provider doesn't support image gen via chat
+    if (response.status === 404) {
+      throw new Error(
+        'Provider does not support image generation. ' +
+        'Try using a dedicated image model (e.g. dall-e-3, seedream, stable-diffusion).'
+      );
+    }
+    throw new Error(`Chat API error (${response.status}): ${error}`);
   }
 
-  const data = await response.json() as { data?: Array<{ url?: string; revised_prompt?: string }> };
-  const imageUrl = data.data?.[0]?.url;
-  if (!imageUrl) throw new Error('No image returned from API');
-
-  return {
-    type: 'image' as const,
-    content: `![Generated Image](${imageUrl})\n\n_${prompt}_`,
-    data: {
-      imageUrl,
-      prompt: data.data?.[0]?.revised_prompt || prompt,
-      model,
-    },
-    timing: Date.now() - startTime,
+  const data = await response.json() as {
+    choices?: Array<{
+      message?: {
+        content?: string | null;
+        images?: Array<{
+          type?: string;
+          image_url?: { url?: string };
+        }>;
+      };
+    }>;
   };
+
+  const message = data.choices?.[0]?.message;
+
+  // Check for OpenRouter-style images array in the message
+  if (message?.images && message.images.length > 0) {
+    const url = message.images[0]?.image_url?.url;
+    if (url) return url;
+  }
+
+  // Check if the assistant returned a markdown image URL in its content
+  if (message?.content) {
+    const markdownMatch = message.content.match(/!\[.*?\]\((.*?)\)/);
+    if (markdownMatch) return markdownMatch[1];
+
+    // Check if content itself is a URL
+    const urlMatch = message.content.match(/https?:\/\/[^\s)]+/);
+    if (urlMatch) return urlMatch[0];
+  }
+
+  throw new Error('No image found in chat completions response');
 }
 
 export const imageGenTool: ToolDefinition = {

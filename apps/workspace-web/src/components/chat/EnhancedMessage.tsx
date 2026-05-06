@@ -17,6 +17,7 @@ import { ReactionPicker } from './ReactionPicker';
 import { ReactionBadge } from './ReactionBadge';
 import { formatDate } from '@/utils/formatDate';
 import { cn } from '@/utils/cn';
+import { getImageUrl } from '@/utils/image';
 import type { Message as MessageType, ChatImage, LinkPreview, Reaction } from '@/types';
 import type { Components } from 'react-markdown';
 import type { Element } from 'hast';
@@ -277,10 +278,15 @@ export const EnhancedMessage = memo(forwardRef<HTMLDivElement, EnhancedMessagePr
         <th className="px-3 py-1.5 border-t border-gray-700 font-semibold bg-bg-hover">{processCellContent(children)}</th>
       ),
       img: ({ src, alt }) => (
-        <figure className="my-2">
-          <img src={src} alt={alt} className="max-w-full rounded-lg" loading="lazy" />
-          {alt && <figcaption className="text-xs text-text-tertiary mt-1 text-center">{alt}</figcaption>}
-        </figure>
+        <span className="block my-2">
+          <img
+            src={getImageUrl(src)}
+            alt={alt}
+            className="max-w-full rounded-lg"
+            loading="lazy"
+          />
+          {alt && <span className="block text-xs text-text-tertiary mt-1 text-center">{alt}</span>}
+        </span>
       ),
     };
 

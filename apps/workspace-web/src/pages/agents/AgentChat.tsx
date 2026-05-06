@@ -28,7 +28,8 @@ export function AgentChat() {
   const [sendTrigger, setSendTrigger] = useState(0);
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [activeTool, setActiveTool] = useState<string | null>(null);
-  const currentUserId = useAuthStore((state) => state.user?.id);
+  const currentUser = useAuthStore((state) => state.user);
+  const currentUserId = currentUser?.id;
 
   // Load tools when agent is available (for tool bar)
   useEffect(() => {
@@ -142,9 +143,21 @@ export function AgentChat() {
 
     const agentName = agentUser?.name || 'Agent';
     const task = content.trim();
-    let toolResultContent = '';
 
-    // Execute the active tool (if any)
+    // 1. Show user's message immediately (optimistic)
+    const optimisticId = `user-${Date.now()}`;
+    setMessages((prev) => [...prev, {
+      id: optimisticId,
+      channelId: '',
+      userId: currentUserId,
+      user: currentUser,
+      content: task,
+      createdAt: new Date(),
+    } as Message]);
+
+    // 2. Execute the active tool (if any) — runs async
+    let toolResultContent = '';
+    let savedMessageId = '';
     if (activeTool) {
       try {
         let toolParams: Record<string, unknown> = {};
@@ -155,13 +168,14 @@ export function AgentChat() {
           if (!url) return;
           toolParams = { url };
         } else if (activeTool === 'image_gen') {
-          toolParams = { prompt: task };
+          toolParams = { prompt: task, userId: currentUserId, agentId };
         }
 
         if (Object.keys(toolParams).length > 0) {
           const response = await api.executeTool(agentName, activeTool, toolParams);
           if (response.success && response.data) {
             toolResultContent = response.data.content || '';
+            savedMessageId = response.data.data?.savedMessageId || '';
           }
         }
       } catch (err) {
@@ -169,7 +183,20 @@ export function AgentChat() {
       }
     }
 
-    // Build history
+    // 3. If image gen, show the generated image (below user's message)
+    //    Use savedMessageId if available so dedup with socket event works
+    if (activeTool === 'image_gen' && toolResultContent) {
+      setMessages((prev) => [...prev, {
+        id: savedMessageId || `img-${Date.now()}`,
+        channelId: '',
+        userId: agentId,
+        user: agentUser,
+        content: toolResultContent,
+        createdAt: new Date(),
+      } as Message]);
+    }
+
+    // 4. Build history for agent context
     const history: { role: string; content: string }[] = [];
     const recentMsgs = messages.slice(-20);
     for (const msg of recentMsgs) {
@@ -181,25 +208,15 @@ export function AgentChat() {
       }
     }
 
-    // Build enhanced task with tool context
+    // 5. Build enhanced task with tool context
     let enhancedTask = task;
     if (activeTool === 'webfetch' && toolResultContent) {
       enhancedTask = `${task}\n\n[Web Fetch Result — page content fetched for context]:\n${toolResultContent}`;
     } else if (activeTool === 'image_gen' && toolResultContent) {
-      // For image gen, save the result as a visible message in the chat
-      try {
-        await api.sendDM(agentId, toolResultContent);
-        setMessages((prev) => [...prev, {
-          id: `img-${Date.now()}`,
-          channelId: '',
-          userId: 'agent-tool',
-          content: toolResultContent,
-          createdAt: new Date(),
-        } as Message]);
-      } catch (_) {}
       enhancedTask = `${task}\n\nThe image was generated and shown above. You can discuss it with the user.`;
     }
 
+    // 6. Save user's message to DB and stream agent response
     try {
       let imageIds: string[] | undefined;
       if (uploads && uploads.length > 0) {
@@ -213,8 +230,12 @@ export function AgentChat() {
       const { data } = response as { success: boolean; data: any };
 
       if (data?.id) {
-        const userMessage = { ...data, images: data.chatImages || [] };
-        setMessages((prev) => [...prev, userMessage]);
+        // Replace optimistic message with the real one from the server
+        setMessages((prev) => prev.map((m) =>
+          m.id === optimisticId
+            ? { ...data, images: data.chatImages || [] }
+            : m
+        ));
         setSendTrigger((prev) => prev + 1);
 
         const { streamAgentChat } = await import('@/services/agentService');
