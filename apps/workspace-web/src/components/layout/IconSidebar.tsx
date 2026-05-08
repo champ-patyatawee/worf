@@ -20,7 +20,7 @@ export function IconSidebar() {
   const handleTabClick = (tabId: typeof tabs[number]['id']) => {
     const tab = tabs.find((t) => t.id === tabId)!;
 
-    if (tabId === 'chat' || tabId === 'kanban') {
+    if (tabId === 'chat' || tabId === 'kanban' || tabId === 'note' || tabId === 'agent') {
       if (activeNavTab === tabId) {
         // Already on this tab: toggle sidebar
         toggleSidebar();
@@ -35,13 +35,6 @@ export function IconSidebar() {
     } else if (tabId === 'dashboard') {
       setActiveNavTab(tabId);
       setSidebarCollapsed(true);
-      if (!location.pathname.startsWith(tab.path)) {
-        navigate(tab.path);
-      }
-    } else {
-      // agent, note: expand sidebar
-      setActiveNavTab(tabId);
-      setSidebarCollapsed(false);
       if (!location.pathname.startsWith(tab.path)) {
         navigate(tab.path);
       }
