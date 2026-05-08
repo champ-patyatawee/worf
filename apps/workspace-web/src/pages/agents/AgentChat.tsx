@@ -144,18 +144,47 @@ export function AgentChat() {
     const agentName = agentUser?.name || 'Agent';
     const task = content.trim();
 
-    // 1. Show user's message immediately (optimistic)
+    // 1. Show user's message immediately (optimistic) with uploaded images
     const optimisticId = `user-${Date.now()}`;
+    const optimisticImages = (uploads || [])
+      .map((u) => u.result)
+      .filter((r): r is NonNullable<typeof r> => r != null);
     setMessages((prev) => [...prev, {
       id: optimisticId,
       channelId: '',
       userId: currentUserId,
       user: currentUser,
       content: task,
+      images: optimisticImages,
       createdAt: new Date(),
     } as Message]);
 
-    // 2. Execute the active tool (if any) — runs async
+    // 2. Save user's message to DB first (so it has the earlier timestamp)
+    try {
+      let imageIds: string[] | undefined;
+      if (uploads && uploads.length > 0) {
+        imageIds = uploads
+          .filter((u) => u.result)
+          .map((u) => u.result!.id)
+          .filter((id): id is string => id !== undefined);
+      }
+
+      const msgResponse = await api.sendDMWithImages(agentId, content, imageIds);
+      const msgData = msgResponse as { success: boolean; data: any };
+
+      if (msgData?.data?.id) {
+        setMessages((prev) => prev.map((m) =>
+          m.id === optimisticId
+            ? { ...msgData.data, images: msgData.data.chatImages || [] }
+            : m
+        ));
+        setSendTrigger((prev) => prev + 1);
+      }
+    } catch (err) {
+      console.error('Failed to save message:', err);
+    }
+
+    // 3. Execute the active tool (if any) — runs after user message is saved
     let toolResultContent = '';
     let savedMessageId = '';
     if (activeTool) {
@@ -168,7 +197,13 @@ export function AgentChat() {
           if (!url) return;
           toolParams = { url };
         } else if (activeTool === 'image_gen') {
-          toolParams = { prompt: task, userId: currentUserId, agentId };
+          const imageUrls: string[] = [];
+          if (uploads && uploads.length > 0) {
+            for (const u of uploads) {
+              if (u.result?.url) imageUrls.push(u.result.url);
+            }
+          }
+          toolParams = { prompt: task, userId: currentUserId, agentId, imageUrls };
         }
 
         if (Object.keys(toolParams).length > 0) {
@@ -183,8 +218,7 @@ export function AgentChat() {
       }
     }
 
-    // 3. If image gen, show the generated image (below user's message)
-    //    Use savedMessageId if available so dedup with socket event works
+    // 4. If image gen, show the generated image (below user's message)
     if (activeTool === 'image_gen' && toolResultContent) {
       setMessages((prev) => [...prev, {
         id: savedMessageId || `img-${Date.now()}`,
@@ -196,71 +230,37 @@ export function AgentChat() {
       } as Message]);
     }
 
-    // 4. Build history for agent context
-    const history: { role: string; content: string }[] = [];
-    const recentMsgs = messages.slice(-20);
-    for (const msg of recentMsgs) {
-      const msgUser = msg.user;
-      if (msgUser?.id === currentUserId) {
-        history.push({ role: 'user', content: msg.content });
-      } else if (msgUser?.id === agentId || msgUser?.role === 'agent' || msgUser?.email?.startsWith('agent-')) {
-        history.push({ role: 'assistant', content: msg.content });
-      }
-    }
-
-    // 5. Build enhanced task with tool context
-    let enhancedTask = task;
-    if (activeTool === 'webfetch' && toolResultContent) {
-      enhancedTask = `${task}\n\n[Web Fetch Result — page content fetched for context]:\n${toolResultContent}`;
-    } else if (activeTool === 'image_gen' && toolResultContent) {
-      enhancedTask = `${task}\n\nThe image was generated and shown above. You can discuss it with the user.`;
-    }
-
-    // 6. Save user's message to DB and stream agent response
-    try {
-      let imageIds: string[] | undefined;
-      if (uploads && uploads.length > 0) {
-        imageIds = uploads
-          .filter((u) => u.result)
-          .map((u) => u.result!.id)
-          .filter((id): id is string => id !== undefined);
-      }
-
-      const response = await api.sendDMWithImages(agentId, content, imageIds);
-      const { data } = response as { success: boolean; data: any };
-
-      if (data?.id) {
-        // Replace optimistic message with the real one from the server
-        setMessages((prev) => prev.map((m) =>
-          m.id === optimisticId
-            ? { ...data, images: data.chatImages || [] }
-            : m
-        ));
-        setSendTrigger((prev) => prev + 1);
-
-        const { streamAgentChat } = await import('@/services/agentService');
-
-        try {
-          let agentFullResponse = '';
-          await streamAgentChat(
-            agentName,
-            enhancedTask,
-            history,
-            (chunk, done) => {
-              agentFullResponse += chunk;
-            },
-            undefined,
-            undefined,
-            true,
-            currentUserId!,
-            agentId
-          );
-        } catch (err: any) {
-          console.error('[AgentChat] Agent error:', err.message);
+    // 5. Stream agent response for normal chat or non-image-gen tools
+    if (!activeTool || activeTool !== 'image_gen') {
+      const history: { role: string; content: string }[] = [];
+      const recentMsgs = messages.slice(-20);
+      for (const msg of recentMsgs) {
+        const msgUser = msg.user;
+        if (msgUser?.id === currentUserId) {
+          history.push({ role: 'user', content: msg.content });
+        } else if (msgUser?.id === agentId || msgUser?.role === 'agent' || msgUser?.email?.startsWith('agent-')) {
+          history.push({ role: 'assistant', content: msg.content });
         }
       }
-    } catch (err) {
-      console.error('Failed to send message:', err);
+
+      const enhancedTask = activeTool === 'webfetch' && toolResultContent
+        ? `${task}\n\n[Web Fetch Result — page content fetched for context]:\n${toolResultContent}`
+        : task;
+
+      try {
+        const { streamAgentChat } = await import('@/services/agentService');
+        let agentFullResponse = '';
+        await streamAgentChat(
+          agentName,
+          enhancedTask,
+          history,
+          (chunk, done) => { agentFullResponse += chunk; },
+          undefined, undefined, true,
+          currentUserId!, agentId
+        );
+      } catch (err: any) {
+        console.error('[AgentChat] Agent error:', err.message);
+      }
     }
   };
 

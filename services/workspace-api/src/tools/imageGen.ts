@@ -2,6 +2,8 @@ import { registerTool, type ToolDefinition } from './registry';
 import { PrismaClient } from '@prisma/client';
 import { imageService } from '../services/imageService';
 import { messageService } from '../services/messageService';
+import path from 'path';
+import fs from 'fs';
 
 const prisma = new PrismaClient();
 
@@ -16,6 +18,8 @@ async function imageGenHandler(
   const providerId = config.providerId as string;
   const userId = (params.userId as string) || 'system';
   const agentId = (params.agentId as string) || '';
+  const imageUrls = (params.imageUrls as string[]) || [];
+  const inputImages = imageUrls.map(urlToBase64);
 
   // Look up the configured provider, or fall back to first active provider
   let provider = providerId
@@ -33,7 +37,7 @@ async function imageGenHandler(
   if (!apiKey || !apiUrl) throw new Error('Provider not fully configured.');
 
   // Generate image via chat completions endpoint
-  const imageUrl = await generateViaChatEndpoint(apiUrl, apiKey, model, prompt);
+  const imageUrl = await generateViaChatEndpoint(apiUrl, apiKey, model, prompt, inputImages);
 
   if (!imageUrl) throw new Error('No image URL returned from provider');
 
@@ -74,17 +78,40 @@ async function imageGenHandler(
 }
 
 /**
+ * Convert a local image URL (/uploads/images/xxx.jpg) to a base64 data URL
+ * by reading the file from disk.
+ */
+function urlToBase64(imageUrl: string): string {
+  const filename = path.basename(imageUrl);
+  const filepath = path.join(process.cwd(), 'uploads', 'images', filename);
+  const buffer = fs.readFileSync(filepath);
+  const ext = path.extname(filename).toLowerCase();
+  const mime = ext === '.png' ? 'image/png' : ext === '.gif' ? 'image/gif' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+  return `data:${mime};base64,${buffer.toString('base64')}`;
+}
+
+/**
  * Generate an image using the chat completions endpoint.
  * Works with providers like OpenRouter that return images via chat.
  * The apiUrl from provider config is already the full chat completions URL.
+ * Supports optional inputImages (base64 data URLs) for image-to-image models like Seedream.
  */
 async function generateViaChatEndpoint(
   apiUrl: string,
   apiKey: string,
   model: string,
-  prompt: string
+  prompt: string,
+  inputImages: string[] = []
 ): Promise<string> {
-  console.log(`[ImageGen] Chat completions endpoint: ${apiUrl}`);
+  console.log(`[ImageGen] Chat completions endpoint: ${apiUrl} (${inputImages.length} input images)`);
+
+  // Build message content: text + optional images
+  const content = inputImages.length > 0
+    ? [
+        { type: 'text', text: prompt },
+        ...inputImages.map(url => ({ type: 'image_url', image_url: { url } })),
+      ]
+    : prompt;
 
   const response = await fetch(apiUrl, {
     method: 'POST',
@@ -97,7 +124,7 @@ async function generateViaChatEndpoint(
       messages: [
         {
           role: 'user',
-          content: prompt,
+          content,
         },
       ],
     }),
@@ -168,7 +195,10 @@ export const imageGenTool: ToolDefinition = {
   },
   skill: `## Image Generation Tool
 
-You can generate images from text descriptions. The generated image is **automatically displayed** in the chat by the system.
+You can generate images from text descriptions.
+
+### CRITICAL RULE — You MUST follow this
+The generated image is **automatically displayed** in the chat by the system. Your response must NEVER contain image URLs, markdown images (![]()), or image references. The system shows the image for you. Only discuss the image with text.
 
 ### When to use it
 - The user asks you to create, draw, or generate an image
@@ -176,11 +206,6 @@ You can generate images from text descriptions. The generated image is **automat
 
 ### How it works
 The system sends your description to an AI image model and returns the image in the chat.
-
-### Important
-- The image is **automatically shown** in the chat — you do NOT need to include any image URLs, markdown images, or image references in your response
-- Simply acknowledge the image and discuss it with the user
-- Do NOT generate or repeat image URLs — the system handles all display
 
 ### Best practices
 - Write detailed, descriptive prompts with subject and style
