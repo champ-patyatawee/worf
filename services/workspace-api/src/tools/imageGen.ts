@@ -1,7 +1,6 @@
 import { registerTool, type ToolDefinition } from './registry';
 import { PrismaClient } from '@prisma/client';
 import { imageService } from '../services/imageService';
-import { messageService } from '../services/messageService';
 import path from 'path';
 import fs from 'fs';
 
@@ -17,7 +16,6 @@ async function imageGenHandler(
 
   const providerId = config.providerId as string;
   const userId = (params.userId as string) || 'system';
-  const agentId = (params.agentId as string) || '';
   const imageUrls = (params.imageUrls as string[]) || [];
   const inputImages = imageUrls.map(urlToBase64);
 
@@ -52,17 +50,6 @@ async function imageGenHandler(
   // Upload to our own server — saves locally + creates ChatImage record
   const uploaded = await imageService.uploadImage(imageBuffer, userId);
 
-  // Persist the result as a DM message from the agent (so it survives refresh)
-  let savedMessageId = '';
-  if (agentId && userId) {
-    try {
-      const msg = await messageService.sendDMMessage(agentId, userId, `![Generated Image](${uploaded.url})\n\n_${prompt}_`);
-      savedMessageId = (msg as any)?.id || '';
-    } catch (err) {
-      console.error('[ImageGen] Failed to save result message:', err);
-    }
-  }
-
   return {
     type: 'image' as const,
     content: `![Generated Image](${uploaded.url})\n\n_${prompt}_`,
@@ -71,7 +58,6 @@ async function imageGenHandler(
       prompt,
       model,
       imageId: uploaded.id,
-      savedMessageId,
     },
     timing: Date.now() - startTime,
   };

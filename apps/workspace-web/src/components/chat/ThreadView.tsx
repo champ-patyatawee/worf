@@ -157,45 +157,6 @@ export function ThreadView({ message, channelId, onBack }: ThreadViewProps) {
       
       console.log('[ThreadView] Sending reply:', { content, imageIds, threadId: message.id });
       
-      const agentMatch = content.match(/^@(\w+)\s+(.+)$/);
-      if (agentMatch && !imageIds?.length) {
-        const agentName = agentMatch[1];
-        const task = agentMatch[2].trim();
-        
-        console.log('[ThreadView] Agent mention detected:', agentName, task);
-        
-        const history: { role: string; content: string }[] = [];
-        const recentReplies = replies.slice(-4);
-        for (const reply of recentReplies) {
-          const replyUser = reply.user;
-          if (replyUser?.id === currentUserId && reply.content.startsWith(`@${agentName}`)) {
-            history.push({ role: 'user', content: reply.content.replace(/^@\w+\s+/, '') });
-          } else if (replyUser?.email?.startsWith('agent-') || replyUser?.role === 'agent') {
-            history.push({ role: 'assistant', content: reply.content });
-          }
-        }
-        console.log('[ThreadView] History from thread:', history.length, 'messages');
-        
-        const response = await api.sendMessage(channelId, content, imageIds, message.id);
-        console.log('[ThreadView] User message sent:', response);
-        
-        const { streamAgentChat } = await import('@/services/agentService');
-        try {
-          await streamAgentChat(agentName, task, history, (chunk, done) => {
-            if (done) {
-              setTimeout(() => {
-                fetchReplies();
-              }, 500);
-            }
-          }, message.id, channelId);
-        } catch (err: any) {
-          console.error('[ThreadView] Agent error:', err.message);
-          setError(err.message || 'Failed to get agent response');
-        }
-        
-        return;
-      }
-      
       const response = await api.sendMessage(channelId, content, imageIds, message.id);
       console.log('[ThreadView] Reply sent successfully:', response);
       

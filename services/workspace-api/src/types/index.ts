@@ -29,7 +29,7 @@ export interface MessageWithRelations extends Message {
 export interface JwtPayload {
   userId: string;
   email: string;
-  role?: 'admin' | 'user';
+  role?: 'admin' | 'user' | 'agent'; // 'agent' kept for backward compat with existing tokens
 }
 
 export interface AuthenticatedRequest extends Request {

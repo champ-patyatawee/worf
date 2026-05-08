@@ -1,16 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { AppLayout } from '@/components/layout';
-import { Login, Register, Channel, DirectMessage, DirectMessages, ProfileSettings, SettingsLayout, AIProvider, Agents, Note, Tools, Search, SearchResult, Notes, Kanban, AgentChat, Dashboard } from '@/pages';
-import { AgentWebViewModal } from '@/components/modals/AgentWebViewModal';
+import { Login, Register, Channel, DirectMessage, DirectMessages, ProfileSettings, SettingsLayout, AIProvider, PromptTemplates, Note, Tools, Search, SearchResult, Notes, Kanban, ChatSessionPage, Dashboard } from '@/pages';
 import { usePresence } from '@/hooks/usePresence';
-import { useUIStore } from '@/stores/uiStore';
 
 function App() {
   usePresence();
-  
-  const agentWebView = useUIStore((s) => s.agentWebView);
-  const closeAgentWebView = useUIStore((s) => s.closeAgentWebView);
 
   return (
     <BrowserRouter>
@@ -29,8 +24,8 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/kanban" element={<Kanban />} />
             <Route path="/kanban/:boardId" element={<Kanban />} />
-            <Route path="/agents" element={<AgentChat />} />
-            <Route path="/agents/:agentSlug" element={<AgentChat />} />
+            <Route path="/ai-chat" element={<ChatSessionPage />} />
+            <Route path="/ai-chat/:sessionId" element={<ChatSessionPage />} />
             <Route path="/notes" element={<Notes />} />
             <Route path="/notes/:slug" element={<Notes />} />
             <Route path="/search" element={<Search />} />
@@ -41,7 +36,7 @@ function App() {
             <Route path="/settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="/settings/ai" replace />} />
               <Route path="ai" element={<AIProvider />} />
-              <Route path="agents" element={<Agents />} />
+              <Route path="prompts" element={<PromptTemplates />} />
               <Route path="note" element={<Note />} />
               <Route path="tools" element={<Tools />} />
             </Route>
@@ -52,14 +47,6 @@ function App() {
           <Route path="*" element={<Navigate to="/channels" replace />} />
         </Routes>
         
-        {/* Global Modals */}
-        <AgentWebViewModal
-          isOpen={agentWebView.isOpen}
-          onClose={closeAgentWebView}
-          agentName={agentWebView.agentName}
-          agentDisplayName={agentWebView.agentDisplayName}
-          webViewUrl={agentWebView.webViewUrl}
-        />
       </AuthProvider>
     </BrowserRouter>
   );

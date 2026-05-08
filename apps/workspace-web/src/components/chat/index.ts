@@ -20,3 +20,5 @@ export { EnhancedMessageInput } from './EnhancedMessageInput';
 export { EnhancedMessage } from './EnhancedMessage';
 export { ReactionPicker } from './ReactionPicker';
 export { ReactionBadge } from './ReactionBadge';
+export { ChatMessageInput } from './ChatMessageInput';
+export { ChatSessionSidebar } from './ChatSessionSidebar';

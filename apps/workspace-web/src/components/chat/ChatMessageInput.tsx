@@ -22,7 +22,7 @@ interface UploadsState {
   [id: string]: ImageUpload;
 }
 
-export const AgentMessageInput = memo(forwardRef<HTMLTextAreaElement, AgentMessageInputProps>(
+export const ChatMessageInput = memo(forwardRef<HTMLTextAreaElement, AgentMessageInputProps>(
   ({
     onSend,
     onSendLink,
@@ -360,4 +360,4 @@ export const AgentMessageInput = memo(forwardRef<HTMLTextAreaElement, AgentMessa
   }
 ));
 
-AgentMessageInput.displayName = 'AgentMessageInput';
+ChatMessageInput.displayName = 'ChatMessageInput';

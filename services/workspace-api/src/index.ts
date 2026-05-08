@@ -15,11 +15,12 @@ import messageRoutes from './routes/messages';
 import userRoutes from './routes/users';
 import dmRoutes from './routes/dm';
 import chatImageRoutes from './routes/chatImages';
-import agentRoutes from './routes/agents';
 import aiProviderRoutes from './routes/aiProviders';
 import searchRoutes from './routes/search';
 import embeddingsRoutes from './routes/embeddings';
 import toolRoutes from './routes/tools';
+import promptTemplateRoutes from './routes/promptTemplates';
+import chatSessionRoutes from './routes/chatSessions';
 
 // Register built-in tools (auto-registers on import)
 import './tools/webfetch';
@@ -64,8 +65,9 @@ app.use('/api', messageRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/dm', dmRoutes);
 app.use('/api/chat', chatImageRoutes);
-app.use('/api/agents', agentRoutes);
 app.use('/api/ai-providers', aiProviderRoutes);
+app.use('/api/prompt-templates', promptTemplateRoutes);
+app.use('/api/chat-sessions', chatSessionRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/embeddings', embeddingsRoutes);
 app.use('/api/tools', toolRoutes);

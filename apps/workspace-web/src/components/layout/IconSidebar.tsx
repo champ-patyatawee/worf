@@ -7,7 +7,7 @@ import { UserDropdown } from './UserDropdown';
 const tabs = [
   { id: 'dashboard' as const, icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { id: 'chat' as const, icon: MessageSquare, label: 'Chat', path: '/channels' },
-  { id: 'agent' as const, icon: Bot, label: 'Agents', path: '/agents' },
+  { id: 'ai-chat' as const, icon: Bot, label: 'AI Chat', path: '/ai-chat' },
   { id: 'note' as const, icon: StickyNote, label: 'Note', path: '/notes' },
   { id: 'kanban' as const, icon: FolderKanban, label: 'Kanban', path: '/kanban' },
 ];
@@ -20,7 +20,7 @@ export function IconSidebar() {
   const handleTabClick = (tabId: typeof tabs[number]['id']) => {
     const tab = tabs.find((t) => t.id === tabId)!;
 
-    if (tabId === 'chat' || tabId === 'kanban' || tabId === 'note' || tabId === 'agent') {
+    if (tabId === 'chat' || tabId === 'kanban' || tabId === 'note' || tabId === 'ai-chat') {
       if (activeNavTab === tabId) {
         // Already on this tab: toggle sidebar
         toggleSidebar();

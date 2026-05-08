@@ -5,7 +5,7 @@ import { Sidebar } from './Sidebar';
 import { IconSidebar } from './IconSidebar';
 import { NoteSidebar } from '@/components/notes/NoteSidebar';
 import { KanbanSidebar } from '@/components/kanban/KanbanSidebar';
-import { AgentSidebar } from '@/components/agents/AgentSidebar';
+import { ChatSessionSidebar } from '@/components/chat/ChatSessionSidebar';
 import { useUIStore } from '@/stores/uiStore';
 import { Modal } from '@/components/common/Modal';
 import { ChannelForm } from '@/components/forms/ChannelForm';
@@ -30,8 +30,8 @@ export function AppLayout() {
       setActiveNavTab('kanban');
     } else if (path.startsWith('/channels') || path.startsWith('/messages') || path.startsWith('/search')) {
       setActiveNavTab('chat');
-    } else if (path.startsWith('/agents')) {
-      setActiveNavTab('agent');
+    } else if (path.startsWith('/ai-chat')) {
+      setActiveNavTab('ai-chat');
     } else if (path.startsWith('/settings')) {
       setActiveNavTab('settings');
     }
@@ -83,7 +83,7 @@ export function AppLayout() {
   const isChatTab = activeNavTab === 'chat';
   const isNoteTab = activeNavTab === 'note';
   const isKanbanTab = activeNavTab === 'kanban';
-  const isAgentTab = activeNavTab === 'agent';
+  const isAiChatTab = activeNavTab === 'ai-chat';
 
   return (
     <div
@@ -153,8 +153,8 @@ export function AppLayout() {
         </>
       )}
 
-      {/* Agent Sidebar - only when agent tab is active */}
-      {isAgentTab && (
+      {/* AI Chat Sidebar - only when ai-chat tab is active */}
+      {isAiChatTab && (
         <>
           <div
             className={cn(
@@ -162,7 +162,7 @@ export function AppLayout() {
               sidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
             )}
           >
-            <AgentSidebar />
+            <ChatSessionSidebar />
           </div>
           <div
             className={cn(
@@ -171,7 +171,7 @@ export function AppLayout() {
             )}
           >
             <div className="w-[260px] h-full flex-shrink-0">
-              <AgentSidebar />
+              <ChatSessionSidebar />
             </div>
           </div>
         </>

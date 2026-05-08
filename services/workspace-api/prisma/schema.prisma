@@ -22,13 +22,15 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relations
-  messages        Message[]
-  reactions       Reaction[]
-  channels        ChannelMember[]
-  directMessages  DirectMessage[] @relation("UserDirectMessages")
+  messages         Message[]
+  reactions        Reaction[]
+  channels         ChannelMember[]
+  directMessages   DirectMessage[] @relation("UserDirectMessages")
   receivedMessages DirectMessage[] @relation("RecipientDirectMessages")
-  chatImages      ChatImage[]
-  chatLinks       ChatLink[]
+  chatImages       ChatImage[]
+  chatLinks        ChatLink[]
+  promptTemplates  PromptTemplate[]
+  chatSessions     ChatSession[]
 }
 
 enum UserStatus {
@@ -41,7 +43,6 @@ enum UserStatus {
 enum UserRole {
   admin
   user
-  agent
 }
 
 model Channel {
@@ -203,29 +204,6 @@ model ChatLink {
   @@index([url])
 }
 
-// AI Agents
-model Agent {
-  id           String   @id @default(uuid())
-  name         String   @unique // e.g., "AgentKanban" - used in @mention
-  displayName String?  // e.g., "Kanban Assistant"
-  description String?  // e.g., "Helps manage Kanban boards"
-  systemPrompt String  // agent.md - system prompt for LLM
-  avatar      String?
-  isActive    Boolean  @default(true)
-  providerId  String?  // AI provider to use (if null, use default)
-  agentUrl    String?  // URL of external agent microservice (e.g., "http://agent-kanban:8000")
-  agentType   String?  // "embedded" (LLM) or "external" (proxy to microservice)
-  slashCommand String?  @unique // e.g., "/kanban" - slash command to open web view
-  webViewUrl  String?  // e.g., "http://agent-kanban:8000/view" - URL opened by slash command
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([name])
-  @@index([isActive])
-  @@index([slashCommand])
-}
-
 // AI Providers (configurable)
 model AIProvider {
   id           String   @id @default(uuid())
@@ -241,6 +219,53 @@ model AIProvider {
 
   @@index([isActive])
   @@index([isDefault])
+}
+
+// Prompt Templates (user-managed)
+model PromptTemplate {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  content     String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatSessions    ChatSession[]
+
+  @@index([userId])
+}
+
+// AI Chat Sessions (per-user)
+model ChatSession {
+  id              String   @id @default(uuid())
+  userId          String
+  title           String?
+  modelId         String?  // Selected AIProvider ID
+  promptTemplateId String? // Selected PromptTemplate ID
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promptTemplate  PromptTemplate? @relation(fields: [promptTemplateId], references: [id], onDelete: SetNull)
+  messages        ChatMessage[]
+
+  @@index([userId])
+}
+
+// AI Chat Messages
+model ChatMessage {
+  id        String   @id @default(uuid())
+  chatId    String
+  role      String   // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  chat      ChatSession @relation(fields: [chatId], references: [id], onDelete: Cascade)
+
+  @@index([chatId, createdAt])
 }
 
 // Tool Config (global tool settings)

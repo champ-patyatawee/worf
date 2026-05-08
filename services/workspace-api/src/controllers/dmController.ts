@@ -1,6 +1,5 @@
 import { Response } from 'express';
 import { dmService } from '../services/dmService';
-import { prisma } from '../config/database';
 import { AuthenticatedRequest } from '../types';
 import { formatResponse, formatError } from '../utils';
 
@@ -66,17 +65,6 @@ export class DmController {
     }
 
     try {
-      // Only allow deleting conversations with agents
-      const recipient = await prisma.user.findUnique({
-        where: { id: recipientId },
-        select: { role: true },
-      });
-
-      if (!recipient || recipient.role !== 'agent') {
-        res.status(403).json(formatError('Can only delete conversations with agents'));
-        return;
-      }
-
       await dmService.deleteConversation(req.user.userId, recipientId);
       res.json(formatResponse({ success: true }));
     } catch (error: any) {

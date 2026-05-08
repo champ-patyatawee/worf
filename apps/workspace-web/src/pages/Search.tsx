@@ -6,7 +6,6 @@ import { Avatar } from '@/components/common';
 import { formatDistanceToNow } from 'date-fns';
 import { useUserStore } from '@/stores/userStore';
 import { useChannelStore } from '@/stores/channelStore';
-import { useAgentStore } from '@/stores/agentStore';
 import { parseSearchQuery, detectSearchMentionTrigger, replaceMentionInContent } from '@/utils/searchQueryParser';
 import { MentionSuggestions } from '@/components/search/MentionSuggestions';
 
@@ -57,10 +56,8 @@ export function Search() {
 
   const users = useUserStore((s) => s.users);
   const channels = useChannelStore((s) => s.channels);
-  const agents = useAgentStore((s) => s.agents);
   const fetchUsers = useUserStore((s) => s.fetchUsers);
   const fetchChannels = useChannelStore((s) => s.fetchChannels);
-  const fetchAgents = useAgentStore((s) => s.fetchAgents);
 
   const performSearch = useCallback(async (
     searchQuery: string,
@@ -86,7 +83,7 @@ export function Search() {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([fetchUsers(), fetchChannels(), fetchAgents()]);
+      await Promise.all([fetchUsers(), fetchChannels()]);
       
       if (initialQuery) {
         const parsed = parseSearchQuery(initialQuery);
@@ -289,7 +286,7 @@ export function Search() {
           type={suggestionType}
           query={suggestionQuery}
           users={users}
-          agents={agents}
+          agents={[]}
           channels={channels}
           onSelect={handleSuggestionSelect}
           onClose={() => setShowSuggestions(false)}

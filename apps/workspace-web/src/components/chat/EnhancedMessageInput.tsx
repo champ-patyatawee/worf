@@ -7,8 +7,6 @@ import { AttachmentDropdown } from './AttachmentDropdown';
 import { PasteHandler } from './PasteHandler';
 import { SlashCommandSuggestions, getSuggestionItems } from './SlashCommandSuggestions';
 import { detectSuggestionTrigger, replaceSuggestionInContent } from '@/utils/suggestionParser';
-import { useAgentStore } from '@/stores/agentStore';
-import { useUIStore } from '@/stores/uiStore';
 import { api } from '@/services/api';
 import type { ImageUpload } from '@/types';
 
@@ -53,10 +51,6 @@ export const EnhancedMessageInput = memo(forwardRef<HTMLTextAreaElement, Enhance
     const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
     const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
     
-    const agents = useAgentStore((s) => s.agents);
-    const fetchAgents = useAgentStore((s) => s.fetchAgents);
-    const openAgentWebView = useUIStore((s) => s.openAgentWebView);
-    
     const fetchSuggestionData = useCallback(async () => {
       try {
         const [usersRes, channelsRes] = await Promise.all([
@@ -72,10 +66,9 @@ export const EnhancedMessageInput = memo(forwardRef<HTMLTextAreaElement, Enhance
     
     useEffect(() => {
       if (showSuggestions) {
-        fetchAgents();
         fetchSuggestionData();
       }
-    }, [showSuggestions, fetchAgents, fetchSuggestionData]);
+    }, [showSuggestions, fetchSuggestionData]);
 
     const generateId = () => `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -237,7 +230,7 @@ export const EnhancedMessageInput = memo(forwardRef<HTMLTextAreaElement, Enhance
 
     const handleKeyDown = useCallback((e: KeyboardEvent<HTMLTextAreaElement>) => {
       if (showSuggestions) {
-        const items = getSuggestionItems(suggestionType, agents, users, channels, suggestionQuery);
+        const items = getSuggestionItems(suggestionType, [], users, channels, suggestionQuery);
         
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -282,7 +275,7 @@ export const EnhancedMessageInput = memo(forwardRef<HTMLTextAreaElement, Enhance
           handleSubmit();
         }
       }
-    }, [content, handleSubmit, adjustTextareaHeight, showSuggestions, suggestionType, agents, users, channels, suggestionQuery, selectedIndex]);
+    }, [content, handleSubmit, adjustTextareaHeight, showSuggestions, suggestionType, users, channels, suggestionQuery, selectedIndex]);
 
     const handleContentChange = useCallback((e: ChangeEvent<HTMLTextAreaElement>) => {
       const value = e.target.value;
@@ -316,27 +309,20 @@ export const EnhancedMessageInput = memo(forwardRef<HTMLTextAreaElement, Enhance
     }, [adjustTextareaHeight]);
     
     const handleSuggestionSelect = useCallback((item: { id: string; name: string; type: 'slash' | 'user' | 'agent' | 'channel'; url?: string }) => {
-      if (item.type === 'slash' && item.url) {
-        const agent = agents.find((a) => a.id === item.id);
-        openAgentWebView(agent?.displayName || item.name, item.url!, agent?.displayName);
-        setContent('');
-        setShowSuggestions(false);
-      } else {
-        const triggerChar = suggestionType === 'slash' ? '/' : suggestionType === 'user' ? '@' : '#';
-        const newContent = replaceSuggestionInContent(content, triggerIndex, triggerChar, item.name);
-        setContent(newContent);
-        setShowSuggestions(false);
-        
-        setTimeout(() => {
-          if (textareaRef.current) {
-            const newPos = triggerIndex + triggerChar.length + item.name.length;
-            textareaRef.current.selectionStart = newPos;
-            textareaRef.current.selectionEnd = newPos;
-            textareaRef.current.focus();
-          }
-        }, 0);
-      }
-    }, [content, triggerIndex, suggestionType, agents, openAgentWebView]);
+      const triggerChar = suggestionType === 'slash' ? '/' : suggestionType === 'user' ? '@' : '#';
+      const newContent = replaceSuggestionInContent(content, triggerIndex, triggerChar, item.name);
+      setContent(newContent);
+      setShowSuggestions(false);
+      
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const newPos = triggerIndex + triggerChar.length + item.name.length;
+          textareaRef.current.selectionStart = newPos;
+          textareaRef.current.selectionEnd = newPos;
+          textareaRef.current.focus();
+        }
+      }, 0);
+    }, [content, triggerIndex, suggestionType]);
 
     useEffect(() => {
       return () => {
@@ -454,7 +440,7 @@ export const EnhancedMessageInput = memo(forwardRef<HTMLTextAreaElement, Enhance
         {showSuggestions && (
           <SlashCommandSuggestions
             query={suggestionQuery}
-            items={getSuggestionItems(suggestionType, agents, users, channels, suggestionQuery)}
+            items={getSuggestionItems(suggestionType, [], users, channels, suggestionQuery)}
             selectedIndex={selectedIndex}
             onSelect={handleSuggestionSelect}
             onClose={() => setShowSuggestions(false)}

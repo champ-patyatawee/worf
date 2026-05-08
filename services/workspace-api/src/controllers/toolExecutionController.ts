@@ -5,12 +5,12 @@ import { loadToolConfig } from '../tools/config';
 
 export class ToolExecutionController {
   /**
-   * POST /api/agents/:name/execute-tool — Execute a tool and return result
+   * POST /api/tools/:toolName/execute — Execute a tool and return result
    */
   async executeTool(req: Request, res: Response) {
     try {
-      const { name: _agentName } = req.params;
-      const { tool: toolName, params } = req.body;
+      const { toolName } = req.params;
+      const { params } = req.body;
 
       if (!toolName) {
         return res.status(400).json({

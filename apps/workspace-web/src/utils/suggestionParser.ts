@@ -1,4 +1,4 @@
-export type SuggestionType = 'slash' | 'user' | 'agent' | 'channel';
+export type SuggestionType = 'slash' | 'user' | 'channel';
 
 export interface TriggerResult {
   type: SuggestionType;

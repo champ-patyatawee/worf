@@ -2,24 +2,17 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 type ModalType = 'createChannel' | 'inviteUser' | 'channelSettings' | null;
-type NavTab = 'dashboard' | 'chat' | 'note' | 'kanban' | 'agent' | 'settings';
+type NavTab = 'dashboard' | 'chat' | 'note' | 'kanban' | 'ai-chat' | 'settings';
 
 function getInitialNavTab(): NavTab {
   const path = window.location.pathname;
   if (path.startsWith('/dashboard')) return 'dashboard';
   if (path.startsWith('/notes')) return 'note';
   if (path.startsWith('/kanban')) return 'kanban';
-  if (path.startsWith('/agents')) return 'agent';
+  if (path.startsWith('/ai-chat')) return 'ai-chat';
   if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/channels') || path.startsWith('/messages') || path.startsWith('/search')) return 'chat';
   return 'chat';
-}
-
-interface AgentWebViewState {
-  isOpen: boolean;
-  agentName: string;
-  agentDisplayName?: string;
-  webViewUrl: string;
 }
 
 interface UIState {
@@ -27,7 +20,6 @@ interface UIState {
   activeNavTab: NavTab;
   activeModal: ModalType;
   searchQuery: string;
-  agentWebView: AgentWebViewState;
 
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
@@ -35,8 +27,6 @@ interface UIState {
   openModal: (modal: ModalType) => void;
   closeModal: () => void;
   setSearchQuery: (query: string) => void;
-  openAgentWebView: (agentName: string, webViewUrl: string, agentDisplayName?: string) => void;
-  closeAgentWebView: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -46,12 +36,6 @@ export const useUIStore = create<UIState>()(
       activeNavTab: getInitialNavTab(),
       activeModal: null,
       searchQuery: '',
-      agentWebView: {
-        isOpen: false,
-        agentName: '',
-        agentDisplayName: undefined,
-        webViewUrl: '',
-      },
 
       toggleSidebar: () => {
         set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed }));
@@ -75,28 +59,6 @@ export const useUIStore = create<UIState>()(
 
       setSearchQuery: (query: string) => {
         set({ searchQuery: query });
-      },
-
-      openAgentWebView: (agentName: string, webViewUrl: string, agentDisplayName?: string) => {
-        set({
-          agentWebView: {
-            isOpen: true,
-            agentName,
-            agentDisplayName,
-            webViewUrl,
-          },
-        });
-      },
-
-      closeAgentWebView: () => {
-        set({
-          agentWebView: {
-            isOpen: false,
-            agentName: '',
-            agentDisplayName: undefined,
-            webViewUrl: '',
-          },
-        });
       },
     }),
     {

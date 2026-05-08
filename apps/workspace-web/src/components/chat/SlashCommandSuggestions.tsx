@@ -1,6 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { cn } from '@/utils/cn';
-import type { Agent } from '@/stores/agentStore';
+
+interface Agent {
+  id: string;
+  name: string;
+  displayName?: string;
+  description?: string;
+  isActive: boolean;
+  slashCommand?: string;
+  webViewUrl?: string;
+}
 
 interface SuggestionItem {
   id: string;

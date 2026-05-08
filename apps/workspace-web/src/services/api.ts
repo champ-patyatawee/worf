@@ -298,30 +298,48 @@ class ApiService {
     return this.get<LinkPreview[]>('/api/chat/links', { messageId });
   }
 
-  // Agent endpoints
-  async getAgents(): Promise<any[]> {
-    const response = await this.get<{ success: boolean; data: any[] }>('/api/agents');
+  // Prompt Template endpoints
+  async getPromptTemplates(): Promise<any[]> {
+    const response = await this.get<{ success: boolean; data: any[] }>('/api/prompt-templates');
     return response.data;
   }
 
-  async getAgent(id: string): Promise<any> {
-    return this.get<{ success: boolean; data: any }>(`/api/agents/${id}`);
+  async createPromptTemplate(data: any): Promise<any> {
+    return this.post<any>('/api/prompt-templates', data);
   }
 
-  async getAgentByName(name: string): Promise<any> {
-    return this.get<{ success: boolean; data: any }>(`/api/agents/name/${name}`);
+  async updatePromptTemplate(id: string, data: any): Promise<any> {
+    return this.put<any>(`/api/prompt-templates/${id}`, data);
   }
 
-  async createAgent(data: any): Promise<any> {
-    return this.post<any>('/api/agents', data);
+  async deletePromptTemplate(id: string): Promise<void> {
+    return this.delete<void>(`/api/prompt-templates/${id}`);
   }
 
-  async updateAgent(id: string, data: any): Promise<any> {
-    return this.put<any>(`/api/agents/${id}`, data);
+  // Chat Session endpoints
+  async getChatSessions(): Promise<any[]> {
+    const response = await this.get<{ success: boolean; data: any[] }>('/api/chat-sessions');
+    return response.data;
   }
 
-  async deleteAgent(id: string): Promise<void> {
-    return this.delete<void>(`/api/agents/${id}`);
+  async createChatSession(data: any): Promise<any> {
+    return this.post<any>('/api/chat-sessions', data);
+  }
+
+  async updateChatSession(id: string, data: any): Promise<any> {
+    return this.put<any>(`/api/chat-sessions/${id}`, data);
+  }
+
+  async deleteChatSession(id: string): Promise<void> {
+    return this.delete<void>(`/api/chat-sessions/${id}`);
+  }
+
+  async getChatMessages(chatId: string, params?: { before?: string; limit?: number }): Promise<any> {
+    return this.get<any>(`/api/chat-sessions/${chatId}/messages`, params as Record<string, string>);
+  }
+
+  async sendChatMessage(chatId: string, content: string): Promise<any> {
+    return this.post<any>(`/api/chat-sessions/${chatId}/messages`, { content });
   }
 
   // AI Provider endpoints
@@ -367,11 +385,10 @@ class ApiService {
   }
 
   async executeTool(
-    agentName: string,
-    tool: string,
+    toolName: string,
     params: Record<string, unknown>
   ): Promise<{ success: boolean; data: any }> {
-    return this.post(`/api/agents/${agentName}/execute-tool`, { tool, params });
+    return this.post(`/api/tools/${toolName}/execute`, { params });
   }
 }
 
