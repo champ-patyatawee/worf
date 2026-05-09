@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { chatSessionService } from '../services/chatSessionService';
 import { AuthenticatedRequest } from '../types';
+import { prisma } from '../config/database';
 
 export class ChatSessionController {
   async list(req: AuthenticatedRequest, res: Response) {
@@ -136,7 +137,6 @@ export class ChatSessionController {
       const result = await chatSessionService.sendMessage(id, req.user.userId, content, toolName, toolParams, toolContext);
 
       if (result.error) {
-        // Partial success - user message saved but AI failed
         return res.json({
           success: true,
           data: {
@@ -159,6 +159,87 @@ export class ChatSessionController {
         return res.status(404).json({ success: false, error: error.message });
       }
       res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  async streamMessage(req: AuthenticatedRequest, res: Response) {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Unauthorized' });
+      }
+      const { id } = req.params;
+      const { content, toolContext } = req.body;
+
+      if (!content?.trim()) {
+        return res.status(400).json({ success: false, error: 'Message content is required' });
+      }
+
+      const result = await chatSessionService.streamMessage(id, req.user.userId, content, toolContext);
+
+      if (result.error) {
+        return res.json({
+          success: true,
+          data: { userMessage: result.userMessage, assistantMessage: null, error: result.error },
+        });
+      }
+
+      // SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      });
+
+      // Send user message event
+      res.write(`data: ${JSON.stringify({ type: 'user', message: result.userMessage })}\n\n`);
+
+      // Stream AI response chunks
+      const reader = result.streamResponse!.body!.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const text = decoder.decode(value);
+          const lines = text.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+              try {
+                const parsed = JSON.parse(line.slice(6));
+                const chunk = parsed.choices?.[0]?.delta?.content || '';
+                if (chunk) {
+                  fullContent += chunk;
+                  res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
+                }
+              } catch {}
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[StreamMessage] Stream read error:', err);
+      }
+
+      // Save assistant message
+      let assistantMessage = null;
+      if (fullContent) {
+        assistantMessage = await prisma.chatMessage.create({
+          data: { chatId: id, role: 'assistant', content: fullContent },
+        });
+      }
+
+      // Send done event
+      res.write(`data: ${JSON.stringify({ type: 'done', message: assistantMessage })}\n\n`);
+      res.end();
+    } catch (error: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: error.message });
+      } else {
+        res.write(`data: ${JSON.stringify({ type: 'error', error: error.message })}\n\n`);
+        res.end();
+      }
     }
   }
 }

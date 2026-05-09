@@ -44,7 +44,6 @@ export class ChatSessionService {
   }
 
   async update(id: string, userId: string, data: UpdateChatSessionInput) {
-    // Verify ownership
     const existing = await prisma.chatSession.findFirst({
       where: { id, userId },
     });
@@ -63,7 +62,6 @@ export class ChatSessionService {
   }
 
   async delete(id: string, userId: string) {
-    // Verify ownership
     const existing = await prisma.chatSession.findFirst({
       where: { id, userId },
     });
@@ -71,14 +69,12 @@ export class ChatSessionService {
       throw new Error('Chat session not found');
     }
 
-    // Messages cascade delete via relation
     return prisma.chatSession.delete({
       where: { id },
     });
   }
 
   async getMessages(chatId: string, userId: string, before?: string, limit = 50) {
-    // Verify ownership
     const session = await prisma.chatSession.findFirst({
       where: { id: chatId, userId },
     });
@@ -106,7 +102,6 @@ export class ChatSessionService {
   }
 
   async sendMessage(chatId: string, userId: string, content: string, toolName?: string, toolParams?: Record<string, unknown>, toolContext?: string) {
-    // Verify ownership and get session
     const session = await prisma.chatSession.findFirst({
       where: { id: chatId, userId },
       include: {
@@ -146,7 +141,6 @@ export class ChatSessionService {
       try {
         const toolResult = await tool.handler(toolParams || {}, toolConfig.config);
 
-        // For image_gen: save the tool result as the assistant message
         if (toolName === 'image_gen') {
           const assistantMessage = await prisma.chatMessage.create({
             data: {
@@ -156,7 +150,6 @@ export class ChatSessionService {
             },
           });
 
-          // Auto-generate title
           if (!session.title) {
             const truncatedTitle = content.trim().substring(0, 60);
             await prisma.chatSession.update({
@@ -168,7 +161,6 @@ export class ChatSessionService {
           return { userMessage, assistantMessage, error: null };
         }
 
-        // For other tools (webfetch): include result as tool context stored separately
         toolResultContent = toolResult.content;
       } catch (error: any) {
         toolResultContent = `[Tool Error — ${toolName}]:\n${error.message}`;
@@ -197,7 +189,6 @@ export class ChatSessionService {
       systemPrompt = session.promptTemplate.content;
     }
 
-    // Append tool skills so the AI knows about available tools
     try {
       const toolConfigs = await prisma.toolConfig.findMany({ where: { isEnabled: true } });
       const enabledToolNames = toolConfigs.map((tc: { toolName: string }) => tc.toolName);
@@ -222,10 +213,8 @@ export class ChatSessionService {
       const apiKey = provider.apiKey;
       const model = provider.model;
 
-      // Build messages for the LLM
       const messages = [
         { role: 'system', content: systemPrompt },
-        // Inject persisted tool context (from webfetch, stored in frontend)
         ...(toolContext ? [{ role: 'system' as const, content: `[Persisted Web Fetch Context — previously fetched pages]:\n${toolContext}` }] : []),
         ...history.map((m) => ({
           role: m.role as 'user' | 'assistant',
@@ -233,7 +222,6 @@ export class ChatSessionService {
         })),
       ];
 
-      // If we have a single-request tool result, add it after the last user message
       if (toolResultContent) {
         messages.push({ role: 'system' as const, content: `[Tool Result — context for the conversation]:\n${toolResultContent}` });
       }
@@ -280,7 +268,6 @@ export class ChatSessionService {
         };
       }
 
-      // 7. Save AI response
       const assistantMessage = await prisma.chatMessage.create({
         data: {
           chatId,
@@ -289,7 +276,6 @@ export class ChatSessionService {
         },
       });
 
-      // 8. Auto-generate title if this is the first exchange and no title set
       if (!session.title && history.length <= 1) {
         const truncatedTitle = content.trim().substring(0, 60);
         await prisma.chatSession.update({
@@ -310,6 +296,96 @@ export class ChatSessionService {
         error: error.message,
       };
     }
+  }
+
+  // New streaming method
+  async streamMessage(
+    chatId: string,
+    userId: string,
+    content: string,
+    toolContext?: string,
+  ): Promise<{
+    userMessage: any;
+    assistantMessage: any | null;
+    error?: string;
+    streamResponse: Response | null;
+  }> {
+    const session = await prisma.chatSession.findFirst({
+      where: { id: chatId, userId },
+      include: { promptTemplate: true },
+    });
+    if (!session) throw new Error('Chat session not found');
+    if (!content?.trim()) throw new Error('Message content is required');
+
+    // Save user message
+    const userMessage = await prisma.chatMessage.create({
+      data: { chatId, role: 'user', content: content.trim() },
+    });
+
+    // Get AI provider
+    let provider = null;
+    if (session.modelId) provider = await aiProviderService.get(session.modelId);
+    if (!provider) provider = await aiProviderService.getActive();
+    if (!provider) {
+      return { userMessage, assistantMessage: null, error: 'No AI provider configured. Go to Settings > AI Provider to add one.', streamResponse: null };
+    }
+
+    // Build system prompt
+    let systemPrompt = 'You are a helpful AI assistant.';
+    if (session.promptTemplate?.content) systemPrompt = session.promptTemplate.content;
+
+    // Append tool skills
+    try {
+      const toolConfigs = await prisma.toolConfig.findMany({ where: { isEnabled: true } });
+      const enabledToolNames = toolConfigs.map((tc: { toolName: string }) => tc.toolName);
+      const toolSkills = getToolSkills(enabledToolNames);
+      if (toolSkills) systemPrompt += `\n\n${toolSkills}`;
+    } catch (err) {
+      console.error('[ChatSession] Failed to load tool skills:', err);
+    }
+
+    // Get conversation history
+    const history = await prisma.chatMessage.findMany({
+      where: { chatId },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+
+    // Build messages
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...(toolContext ? [{ role: 'system' as const, content: `[Persisted Web Fetch Context — previously fetched pages]:\n${toolContext}` }] : []),
+      ...history.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    ];
+
+    // Call LLM with streaming
+    const apiUrl = provider.apiUrl;
+    const apiKey = provider.apiKey;
+    const model = provider.model;
+    const baseUrl = apiUrl.replace(/\/chat\/completions$/, '');
+    const endpoint = `${baseUrl}/chat/completions`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, stream: true }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { userMessage, assistantMessage: null, error: `AI API error: ${errorText}`, streamResponse: null };
+    }
+
+    // Auto-generate title if first exchange
+    if (!session.title && history.length <= 1) {
+      const truncatedTitle = content.trim().substring(0, 60);
+      await prisma.chatSession.update({
+        where: { id: chatId },
+        data: { title: truncatedTitle + (content.trim().length > 60 ? '...' : '') },
+      });
+    }
+
+    return { userMessage, assistantMessage: null, error: null, streamResponse: response };
   }
 }
 

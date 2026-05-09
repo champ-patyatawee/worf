@@ -60,12 +60,21 @@ router.get(
 );
 
 /**
- * POST /api/chat-sessions/:id/messages - Send a message and get AI response
+ * POST /api/chat-sessions/:id/messages - Send a message and get AI response (non-streaming)
  */
 router.post(
   '/:id/messages',
   authenticate,
   asyncHandler((req, res) => chatSessionController.sendMessage(req, res))
+);
+
+/**
+ * POST /api/chat-sessions/:id/stream - Send a message and stream AI response (SSE)
+ */
+router.post(
+  '/:id/stream',
+  authenticate,
+  asyncHandler((req, res) => chatSessionController.streamMessage(req, res))
 );
 
 export default router;

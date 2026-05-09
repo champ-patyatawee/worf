@@ -110,24 +110,28 @@ export function ChatSessionPage() {
   const handleSendMessage = async (content: string, uploads?: ImageUpload[]) => {
     if (!sessionId) return;
 
-    let toolName: string | undefined;
-    let toolParams: Record<string, unknown> | undefined;
-    let toolContext: string | undefined;
-
+    // image_gen uses non-streaming path (needs tool execution)
     if (activeTool === 'image_gen') {
-      toolName = 'image_gen';
       const imageUrls: string[] = [];
       if (uploads && uploads.length > 0) {
         for (const u of uploads) {
           if (u.result?.url) imageUrls.push(u.result.url);
         }
       }
-      toolParams = { prompt: content, userId: currentUser?.id, imageUrls };
-    } else if (activeTool === 'webfetch') {
+      await sendMessage(sessionId, content, 'image_gen', {
+        prompt: content,
+        userId: currentUser?.id,
+        imageUrls,
+      });
+      return;
+    }
+
+    // webfetch: execute tool separately, pass context to streaming
+    let toolContext: string | undefined;
+    if (activeTool === 'webfetch') {
       const urlMatch = content.match(/https?:\/\/[^\s]+/);
       if (urlMatch) {
         const url = urlMatch[0];
-        // Build fresh context map including any newly fetched URL
         const updatedContexts = { ...toolContexts };
         if (!updatedContexts[url]) {
           try {
@@ -140,7 +144,6 @@ export function ChatSessionPage() {
             console.error('Webfetch failed:', err);
           }
         }
-        // Send all cached webfetch context to the LLM
         const allContexts = Object.values(updatedContexts);
         if (allContexts.length > 0) {
           toolContext = allContexts.join('\n\n---\n\n');
@@ -148,7 +151,8 @@ export function ChatSessionPage() {
       }
     }
 
-    await sendMessage(sessionId, content, toolName, toolParams, toolContext);
+    // Streaming: only content + toolContext, no toolName/toolParams
+    await sendMessage(sessionId, content, undefined, undefined, toolContext);
   };
 
   const handleSendLink = async (url: string) => {
