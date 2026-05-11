@@ -49,6 +49,7 @@ interface ProviderFormData {
   apiUrl: string;
   apiKey: string;
   model: string;
+  isDefault?: boolean;
 }
 
 export function AIProvider() {
@@ -241,6 +242,7 @@ function ProviderModal({
     apiUrl: provider?.apiUrl || 'https://api.openai.com/v1',
     apiKey: '',
     model: provider?.model || 'gpt-4',
+    isDefault: provider?.isDefault || false,
   });
 
   // Update form when provider changes
@@ -251,6 +253,7 @@ function ProviderModal({
       apiUrl: provider?.apiUrl || 'https://api.openai.com/v1',
       apiKey: '',
       model: provider?.model || 'gpt-4',
+      isDefault: provider?.isDefault || false,
     });
   }, [provider]);
 
@@ -313,6 +316,19 @@ function ProviderModal({
         <div>
           <label className="block text-sm font-medium text-text-primary mb-1">Model</label>
           <Input value={formData.model} onChange={(e) => setFormData({ ...formData, model: e.target.value })} placeholder="gpt-4" />
+        </div>
+
+        <div className="flex items-center gap-2 pt-2">
+          <input
+            type="checkbox"
+            id="isDefault"
+            checked={formData.isDefault || false}
+            onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
+            className="rounded border-[var(--color-border-primary)]"
+          />
+          <label htmlFor="isDefault" className="text-sm font-medium text-text-primary cursor-pointer">
+            Set as default provider
+          </label>
         </div>
 
         <div className="flex justify-end gap-3 pt-4">
