@@ -91,6 +91,9 @@ export function ChatSessionPage() {
     sessions,
     messages: storeMessages,
     fetchMessages,
+    fetchMoreMessages,
+    hasMore,
+    isLoadingMore,
     sendMessage,
     fetchSessions,
     updateSession,
@@ -259,6 +262,13 @@ export function ChatSessionPage() {
     console.log('Thread not supported for AI chat:', message.id);
   }, []);
 
+  const handleLoadOlder = useCallback(() => {
+    if (!sessionId || isLoadingMore || !hasMore) return;
+    const oldest = storeMessages[0];
+    if (!oldest) return;
+    fetchMoreMessages(sessionId, oldest.createdAt);
+  }, [sessionId, storeMessages, isLoadingMore, hasMore, fetchMoreMessages]);
+
   const messages: Message[] = storeMessages.map((m) => ({
     id: m.id,
     channelId: '',
@@ -374,8 +384,8 @@ export function ChatSessionPage() {
       <MessageList
         messages={messages}
         isLoading={false}
-        hasMore={false}
-        isLoadingMore={false}
+        hasMore={hasMore}
+        isLoadingMore={isLoadingMore}
         className="flex-1"
         renderMessage={(message, index, allMessages, meta) => (
           <EnhancedMessage
@@ -388,7 +398,7 @@ export function ChatSessionPage() {
             onOpenThread={handleOpenThread}
           />
         )}
-        onLoadOlder={() => {}}
+        onLoadOlder={handleLoadOlder}
       />
 
       <ChatMessageInput

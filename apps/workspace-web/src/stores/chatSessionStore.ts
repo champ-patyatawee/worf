@@ -37,6 +37,8 @@ interface ChatSessionState {
   messages: ChatMessage[];
   isLoading: boolean;
   isSending: boolean;
+  hasMore: boolean;
+  isLoadingMore: boolean;
   error: string | null;
 
   fetchSessions: () => Promise<void>;
@@ -45,6 +47,7 @@ interface ChatSessionState {
   deleteSession: (id: string) => Promise<void>;
   setActiveSession: (id: string | null) => void;
   fetchMessages: (sessionId: string) => Promise<void>;
+  fetchMoreMessages: (sessionId: string, before: string) => Promise<void>;
   sendMessage: (sessionId: string, content: string, toolName?: string, toolParams?: Record<string, unknown>, toolContext?: string) => Promise<void>;
 }
 
@@ -54,6 +57,8 @@ export const useChatSessionStore = create<ChatSessionState>((set, get) => ({
   messages: [],
   isLoading: false,
   isSending: false,
+  hasMore: false,
+  isLoadingMore: false,
   error: null,
 
   fetchSessions: async () => {
@@ -121,13 +126,44 @@ export const useChatSessionStore = create<ChatSessionState>((set, get) => ({
   fetchMessages: async (sessionId) => {
     try {
       const response = await api.get<{ success: boolean; data: { messages: ChatMessage[]; pagination?: any } }>(
-        `/api/chat-sessions/${sessionId}/messages`
+        `/api/chat-sessions/${sessionId}/messages`,
+        { limit: '5' }
       );
       if (response.success) {
-        set({ messages: response.data.messages });
+        set({
+          messages: response.data.messages,
+          hasMore: response.data.pagination?.hasMore ?? false,
+        });
       }
     } catch (err) {
       console.error('[ChatSessionStore] Failed to fetch messages:', err);
+    }
+  },
+
+  fetchMoreMessages: async (sessionId, before) => {
+    const state = get();
+    if (state.isLoadingMore || !state.hasMore) return;
+
+    set({ isLoadingMore: true });
+    try {
+      const response = await api.get<{ success: boolean; data: { messages: ChatMessage[]; pagination?: any } }>(
+        `/api/chat-sessions/${sessionId}/messages`,
+        { before, limit: '5' }
+      );
+      if (response.success) {
+        const existingIds = new Set(state.messages.map((m) => m.id));
+        const newMessages = (response.data.messages || []).filter(
+          (m) => !existingIds.has(m.id)
+        );
+        set({
+          messages: [...newMessages, ...state.messages],
+          hasMore: response.data.pagination?.hasMore ?? false,
+          isLoadingMore: false,
+        });
+      }
+    } catch (err) {
+      console.error('[ChatSessionStore] Failed to fetch more messages:', err);
+      set({ isLoadingMore: false });
     }
   },
 

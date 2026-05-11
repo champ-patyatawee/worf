@@ -145,8 +145,8 @@ export function AIProvider() {
         </Button>
       </div>
 
-      <div className="bg-bg-primary rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] overflow-hidden shadow-[var(--shadow-card)]">
-        <table className="w-full">
+      <div className="bg-bg-primary rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] overflow-x-auto shadow-[var(--shadow-card)]">
+        <table className="w-full min-w-[640px]">
           <thead className="bg-bg-tertiary border-b-2 border-[var(--color-border-primary)]">
             <tr>
               <th className="text-left px-4 py-3 text-xs font-semibold text-text-tertiary uppercase">Name</th>
