@@ -244,21 +244,11 @@ export function DirectMessage() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <Avatar name={dmUser.name} src={dmUser.avatar} size="lg" status={dmUser.status} />
+        <Avatar name={dmUser.name} src={dmUser.avatar} size="sm" status={dmUser.status} />
         <div className="flex-1 min-w-0">
           <h2 className="font-semibold text-[15px] truncate" style={{ color: 'var(--color-text-primary)' }}>{dmUser.name}</h2>
           <p className="text-xs capitalize" style={{ color: 'var(--color-text-tertiary)' }}>{dmUser.status}</p>
         </div>
-        <button
-          onClick={() => navigate('/search')}
-          className="p-2 rounded-md transition-colors-fast"
-          title="Search messages"
-          style={{ color: 'var(--color-text-secondary)' }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--color-bg-hover)'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
-        >
-          <Search className="h-5 w-5" />
-          </button>
       </header>
 
       {/* Messages */}
