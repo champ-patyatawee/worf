@@ -1,4 +1,4 @@
-import { forwardRef, useState, useCallback, memo, useEffect, useRef } from 'react';
+import { forwardRef, memo, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -6,66 +6,25 @@ import rehypeKatex from 'rehype-katex';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import mermaid from 'mermaid';
-import { MessageSquare } from 'lucide-react';
 import { Avatar } from '@/components/common';
-import { ThreadIndicator } from './ThreadIndicator';
-import { ImageBubble } from './ImageBubble';
-import { LinkPreviewCard } from './LinkPreviewCard';
-import { CopyButton, copyImageToClipboard } from './CopyButton';
-import { ImageLightbox } from './ImageLightbox';
-import { ReactionPicker } from './ReactionPicker';
-import { ReactionBadge } from './ReactionBadge';
+import { CopyButton } from './CopyButton';
 import { formatDate } from '@/utils/formatDate';
 import { cn } from '@/utils/cn';
 import { getImageUrl } from '@/utils/image';
-import type { Message as MessageType, ChatImage, LinkPreview, Reaction } from '@/types';
+import type { Message as MessageType } from '@/types';
 import type { Components } from 'react-markdown';
-import type { Element } from 'hast';
 
-interface EnhancedMessageProps {
+interface AIMessageProps {
   message: MessageType;
-  isOwn?: boolean;
   showAvatar?: boolean;
   isCompact?: boolean;
   showHeader?: boolean;
   className?: string;
-  onOpenThread?: (message: MessageType) => void;
 }
 
-export const EnhancedMessage = memo(forwardRef<HTMLDivElement, EnhancedMessageProps>(
-  ({ message, isOwn = false, showAvatar = true, isCompact = false, showHeader = true, className, onOpenThread }, ref) => {
+export const AIMessage = memo(forwardRef<HTMLDivElement, AIMessageProps>(
+  ({ message, showAvatar = true, isCompact = false, showHeader = true, className }, ref) => {
     const user = message.user;
-    const [lightboxOpen, setLightboxOpen] = useState(false);
-    const [lightboxIndex, setLightboxIndex] = useState(0);
-
-    const handleOpenThread = useCallback(() => {
-      if (onOpenThread) {
-        onOpenThread(message);
-      }
-    }, [message, onOpenThread]);
-
-    const images = message.images || [];
-    const links = message.links || [];
-    const reactions: Reaction[] = message.reactions || [];
-
-    const handleAddReaction = useCallback((emoji: string) => {
-      import('@/services/socket').then(({ socketService }) => {
-        socketService.addReaction(message.id, emoji);
-      });
-    }, [message.id]);
-
-    const handleImageClick = useCallback((index: number) => {
-      setLightboxIndex(index);
-      setLightboxOpen(true);
-    }, []);
-
-    const handleCopyImage = useCallback(async (image: ChatImage) => {
-      await copyImageToClipboard(image.url);
-    }, []);
-
-    const handleLinkClick = useCallback((link: LinkPreview) => {
-      window.open(link.url, '_blank', 'noopener,noreferrer');
-    }, []);
 
     mermaid.initialize({
       startOnLoad: false,
@@ -303,51 +262,6 @@ export const EnhancedMessage = memo(forwardRef<HTMLDivElement, EnhancedMessagePr
             </ReactMarkdown>
           </div>
         )}
-        {images.length > 0 && (
-          <div className={cn(
-            'flex flex-wrap gap-2',
-            isCompact ? 'mt-1.5' : 'mt-2',
-            images.length === 1 && (isCompact ? 'max-w-[200px]' : 'max-w-sm'),
-            images.length === 2 && (isCompact ? 'max-w-[280px]' : 'max-w-md'),
-            images.length >= 3 && (isCompact ? 'max-w-[320px]' : 'max-w-lg')
-          )}>
-            {images.map((image, index) => (
-              <ImageBubble
-                key={image.id}
-                image={image}
-                onClick={() => handleImageClick(index)}
-                onCopy={() => handleCopyImage(image)}
-                className={cn(
-                  isCompact
-                    ? (images.length === 1 ? 'w-48' : images.length === 2 ? 'w-36' : 'w-28')
-                    : (images.length === 1 ? 'w-64' : images.length === 2 ? 'w-48' : 'w-40')
-                )}
-              />
-            ))}
-          </div>
-        )}
-        {links.length > 0 && (
-          <div className={cn('space-y-2 max-w-md', isCompact ? 'mt-1.5' : 'mt-2')}>
-            {links.map((link) => (
-              <LinkPreviewCard
-                key={link.id}
-                link={link}
-                onClick={() => handleLinkClick(link)}
-              />
-            ))}
-          </div>
-        )}
-        {reactions.length > 0 && (
-          <div className={cn('flex items-center gap-1', isCompact ? 'mt-1' : 'mt-1.5')}>
-            <ReactionBadge reactions={reactions} messageId={message.id} />
-          </div>
-        )}
-        {!isCompact && (message.threadCount ?? 0) > 0 && onOpenThread && (
-          <ThreadIndicator
-            count={message.threadCount ?? 0}
-            onClick={() => handleOpenThread()}
-          />
-        )}
       </>
     );
 
@@ -373,28 +287,8 @@ export const EnhancedMessage = memo(forwardRef<HTMLDivElement, EnhancedMessagePr
 
             <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 p-1.5">
               <CopyButton text={message.content} size="sm" />
-              <ReactionPicker onSelect={handleAddReaction} />
-              {onOpenThread && (
-                <button
-                  onClick={handleOpenThread}
-                  className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--color-bg-hover)] border-2 border-transparent hover:border-[var(--color-border-primary)] transition-all-fast"
-                  title="Reply in thread"
-                >
-                  <MessageSquare className="h-4 w-4 text-[var(--color-text-tertiary)]" />
-                </button>
-              )}
             </div>
           </div>
-
-          {lightboxOpen && images.length > 0 && (
-            <ImageLightbox
-              images={images}
-              initialIndex={lightboxIndex}
-              isOpen={lightboxOpen}
-              onClose={() => setLightboxOpen(false)}
-              onCopy={handleCopyImage}
-            />
-          )}
         </>
       );
     }
@@ -434,31 +328,11 @@ export const EnhancedMessage = memo(forwardRef<HTMLDivElement, EnhancedMessagePr
 
           <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 p-1.5">
             <CopyButton text={message.content} size="sm" />
-            <ReactionPicker onSelect={handleAddReaction} />
-            {onOpenThread && (
-              <button
-                onClick={handleOpenThread}
-                className="p-1.5 rounded-[var(--radius-md)] hover:bg-[var(--color-bg-hover)] border-2 border-transparent hover:border-[var(--color-border-primary)] transition-all-fast"
-                title="Reply in thread"
-              >
-                <MessageSquare className="h-4 w-4 text-[var(--color-text-tertiary)]" />
-              </button>
-            )}
           </div>
         </div>
-
-        {lightboxOpen && images.length > 0 && (
-          <ImageLightbox
-            images={images}
-            initialIndex={lightboxIndex}
-            isOpen={lightboxOpen}
-            onClose={() => setLightboxOpen(false)}
-            onCopy={handleCopyImage}
-          />
-        )}
       </>
     );
   }
 ));
 
-EnhancedMessage.displayName = 'EnhancedMessage';
+AIMessage.displayName = 'AIMessage';

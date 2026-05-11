@@ -18,6 +18,7 @@ export { PasteHandler, usePasteHandler } from './PasteHandler';
 export { URLInput } from './URLInput';
 export { EnhancedMessageInput } from './EnhancedMessageInput';
 export { EnhancedMessage } from './EnhancedMessage';
+export { AIMessage } from './AIMessage';
 export { ReactionPicker } from './ReactionPicker';
 export { ReactionBadge } from './ReactionBadge';
 export { ChatMessageInput } from './ChatMessageInput';

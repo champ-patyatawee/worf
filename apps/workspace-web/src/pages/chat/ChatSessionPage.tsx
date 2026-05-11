@@ -1,7 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { MessageList, EnhancedMessage } from '@/components/chat';
-import { ChatMessageInput } from '@/components/chat';
+import { MessageList, AIMessage, ChatMessageInput } from '@/components/chat';
 import { ToolBar } from '@/components/tools';
 import { useChatSessionStore } from '@/stores/chatSessionStore';
 import { usePromptTemplateStore } from '@/stores/promptTemplateStore';
@@ -258,10 +257,6 @@ export function ChatSessionPage() {
     });
   }, []);
 
-  const handleOpenThread = useCallback((message: Message) => {
-    console.log('Thread not supported for AI chat:', message.id);
-  }, []);
-
   const handleLoadOlder = useCallback(() => {
     if (!sessionId || isLoadingMore || !hasMore) return;
     const oldest = storeMessages[0];
@@ -388,14 +383,12 @@ export function ChatSessionPage() {
         isLoadingMore={isLoadingMore}
         className="flex-1"
         renderMessage={(message, index, allMessages, meta) => (
-          <EnhancedMessage
+          <AIMessage
             key={message.id}
             message={message}
-            isOwn={meta?.isOwn}
             showAvatar={meta?.showAvatar}
             isCompact={meta?.isCompact}
             showHeader={meta?.showHeader}
-            onOpenThread={handleOpenThread}
           />
         )}
         onLoadOlder={handleLoadOlder}
