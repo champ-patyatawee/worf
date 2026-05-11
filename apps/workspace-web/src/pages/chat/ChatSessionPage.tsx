@@ -1,13 +1,13 @@
 import { useParams } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { MessageList, EnhancedMessage } from '@/components/chat';
 import { ChatMessageInput } from '@/components/chat';
 import { ToolBar } from '@/components/tools';
-import { useChatSessionStore, type ChatSession } from '@/stores/chatSessionStore';
+import { useChatSessionStore } from '@/stores/chatSessionStore';
 import { usePromptTemplateStore } from '@/stores/promptTemplateStore';
 import { useAuthStore } from '@/stores/authStore';
 import { api } from '@/services/api';
-import { Bot, ChevronDown } from 'lucide-react';
+import { Bot, Settings2, X, ChevronDown } from 'lucide-react';
 import type { Message, ImageUpload, ChatImage, ToolDefinition } from '@/types';
 
 interface AIProvider {
@@ -17,6 +17,71 @@ interface AIProvider {
   model: string;
   isActive: boolean;
   isDefault: boolean;
+}
+
+// Custom dropdown that replaces native <select> for full design system styling
+function SettingsDropdown({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  placeholder: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false);
+    };
+    if (isOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [isOpen]);
+
+  const selectedLabel = options.find((o) => o.value === value)?.label || placeholder;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex h-11 w-full items-center justify-between gap-2 rounded-[var(--radius-md)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-secondary)] px-4 text-[15px] text-[var(--color-text-primary)] transition-colors duration-150 hover:border-[var(--color-text-secondary)]"
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <ChevronDown className="h-4 w-4 flex-shrink-0 text-[var(--color-text-secondary)]" />
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-[var(--radius-md)] border-2"
+          style={{
+            backgroundColor: 'var(--color-bg-secondary)',
+            borderColor: 'var(--color-border-primary)',
+            boxShadow: '4px 4px 0px #0D0D0D',
+          }}
+        >
+          <button
+            onClick={() => { onChange(''); setIsOpen(false); }}
+            className={`w-full px-4 py-2.5 text-left text-[15px] transition-colors hover:bg-[var(--color-bg-hover)] ${!value ? 'font-medium text-[var(--color-accent-primary)]' : 'text-[var(--color-text-tertiary)]'}`}
+          >
+            {placeholder}
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => { onChange(opt.value); setIsOpen(false); }}
+              className={`w-full px-4 py-2.5 text-left text-[15px] transition-colors hover:bg-[var(--color-bg-hover)] ${value === opt.value ? 'font-medium text-[var(--color-accent-primary)] bg-[var(--color-accent-subtle)]' : 'text-[var(--color-text-primary)]'}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ChatSessionPage() {
@@ -35,13 +100,13 @@ export function ChatSessionPage() {
   const { templates, fetchTemplates } = usePromptTemplateStore();
   const currentUser = useAuthStore((s) => s.user);
 
-  const [session, setSession] = useState<ChatSession | null>(null);
   const [providers, setProviders] = useState<AIProvider[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [toolContexts, setToolContexts] = useState<Record<string, string>>({});
+  const [showSettings, setShowSettings] = useState(false);
 
   // Load data on mount
   useEffect(() => {
@@ -61,17 +126,24 @@ export function ChatSessionPage() {
     if (sessionId && sessions.length > 0) {
       const found = sessions.find((s) => s.id === sessionId);
       if (found) {
-        setSession(found);
         setActiveSession(sessionId);
         setSelectedModel(found.modelId || '');
         setSelectedTemplate(found.promptTemplateId || '');
         fetchMessages(sessionId);
       }
     } else if (!sessionId) {
-      setSession(null);
       setActiveSession(null);
     }
   }, [sessionId, sessions, setActiveSession, fetchMessages]);
+
+  // Close settings sidebar on Escape
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowSettings(false);
+    };
+    if (showSettings) document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [showSettings]);
 
   const loadProviders = async () => {
     try {
@@ -91,7 +163,6 @@ export function ChatSessionPage() {
     }
   };
 
-  // When model selection changes, update session
   const handleModelChange = async (value: string) => {
     setSelectedModel(value);
     if (sessionId) {
@@ -99,7 +170,6 @@ export function ChatSessionPage() {
     }
   };
 
-  // When template selection changes, update session
   const handleTemplateChange = async (value: string) => {
     setSelectedTemplate(value);
     if (sessionId) {
@@ -110,7 +180,6 @@ export function ChatSessionPage() {
   const handleSendMessage = async (content: string, uploads?: ImageUpload[]) => {
     if (!sessionId) return;
 
-    // image_gen uses non-streaming path (needs tool execution)
     if (activeTool === 'image_gen') {
       const imageUrls: string[] = [];
       if (uploads && uploads.length > 0) {
@@ -126,7 +195,6 @@ export function ChatSessionPage() {
       return;
     }
 
-    // webfetch: execute tool separately, pass context to streaming
     let toolContext: string | undefined;
     if (activeTool === 'webfetch') {
       const urlMatch = content.match(/https?:\/\/[^\s]+/);
@@ -151,13 +219,11 @@ export function ChatSessionPage() {
       }
     }
 
-    // Streaming: only content + toolContext, no toolName/toolParams
     await sendMessage(sessionId, content, undefined, undefined, toolContext);
   };
 
   const handleSendLink = async (url: string) => {
     if (!sessionId) return;
-    // For link preview, just send as text for now
     await sendMessage(sessionId, url);
   };
 
@@ -180,7 +246,6 @@ export function ChatSessionPage() {
   const handleToolClick = useCallback((toolName: string) => {
     setActiveTool((prev) => {
       if (prev === toolName) {
-        // Clear cached context when deselecting the tool
         if (toolName === 'webfetch') {
           setToolContexts({});
         }
@@ -194,7 +259,6 @@ export function ChatSessionPage() {
     console.log('Thread not supported for AI chat:', message.id);
   }, []);
 
-  // Convert store messages to Message format for MessageList
   const messages: Message[] = storeMessages.map((m) => ({
     id: m.id,
     channelId: '',
@@ -226,7 +290,7 @@ export function ChatSessionPage() {
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
-      {/* Header with model and template selectors */}
+      {/* Minimal header with settings gear */}
       <header
         className="flex items-center gap-3 px-4 py-2.5 border-b-2 transition-colors duration-100"
         style={{
@@ -245,52 +309,67 @@ export function ChatSessionPage() {
           <Bot className="h-4 w-4" style={{ color: 'var(--color-text-secondary)' }} />
         </div>
 
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          {/* Model selector */}
-          <div className="relative">
-            <select
-              value={selectedModel}
-              onChange={(e) => handleModelChange(e.target.value)}
-              className="appearance-none h-8 rounded-[var(--radius-md)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-secondary)] text-sm text-[var(--color-text-primary)] pl-2.5 pr-7 transition-colors duration-100 cursor-pointer hover:border-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
-            >
-              <option value="">Default model</option>
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.model})
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-text-tertiary)] pointer-events-none" />
-          </div>
+        <div className="flex-1" />
 
-          {/* Prompt template selector */}
-          <div className="relative">
-            <select
-              value={selectedTemplate}
-              onChange={(e) => handleTemplateChange(e.target.value)}
-              className="appearance-none h-8 rounded-[var(--radius-md)] border-2 border-[var(--color-border-primary)] bg-[var(--color-bg-secondary)] text-sm text-[var(--color-text-primary)] pl-2.5 pr-7 transition-colors duration-100 cursor-pointer hover:border-[var(--color-text-secondary)] focus:outline-none focus:border-[var(--color-accent-primary)]"
-            >
-              <option value="">No template</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}{t.isDefault ? ' (default)' : ''}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--color-text-tertiary)] pointer-events-none" />
-          </div>
-
-          {/* Session title */}
-          {session?.title && (
-            <>
-              <div className="w-px h-5" style={{ backgroundColor: 'var(--color-border-secondary)' }} />
-              <span className="text-sm truncate hidden sm:inline" style={{ color: 'var(--color-text-tertiary)' }}>
-                {session.title}
-              </span>
-            </>
-          )}
-        </div>
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className="p-2 rounded-[var(--radius-md)] transition-colors duration-100 border-2"
+          style={{
+            color: showSettings ? 'var(--color-accent-primary)' : 'var(--color-text-tertiary)',
+            backgroundColor: showSettings ? 'var(--color-accent-subtle)' : 'transparent',
+            borderColor: showSettings ? 'var(--color-border-primary)' : 'transparent',
+          }}
+          title="Chat settings"
+        >
+          <Settings2 className="h-4 w-4" />
+        </button>
       </header>
+
+      {/* Settings slide-in sidebar */}
+      {showSettings && (
+        <>
+          <div
+            className="fixed inset-0 z-30"
+            style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}
+            onClick={() => setShowSettings(false)}
+          />
+          <div
+            className="fixed top-0 right-0 z-40 h-full w-72 border-l-2 animate-slideIn"
+            style={{
+              backgroundColor: 'var(--color-bg-primary)',
+              borderColor: 'var(--color-border-primary)',
+              boxShadow: '-4px 0 12px rgba(0,0,0,0.08)',
+            }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b-2" style={{ borderColor: 'var(--color-border-primary)' }}>
+              <span className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>Chat Settings</span>
+              <button onClick={() => setShowSettings(false)} className="p-1 rounded hover:bg-[var(--color-bg-hover)]">
+                <X className="h-4 w-4" style={{ color: 'var(--color-text-tertiary)' }} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>Model</label>
+                <SettingsDropdown
+                  value={selectedModel}
+                  onChange={handleModelChange}
+                  options={providers.map((p) => ({ value: p.id, label: `${p.name} (${p.model})` }))}
+                  placeholder="Default model"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>Prompt Template</label>
+                <SettingsDropdown
+                  value={selectedTemplate}
+                  onChange={handleTemplateChange}
+                  options={templates.map((t) => ({ value: t.id, label: `${t.name}${t.isDefault ? ' (default)' : ''}` }))}
+                  placeholder="No template"
+                />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       <MessageList
         messages={messages}

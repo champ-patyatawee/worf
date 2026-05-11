@@ -176,6 +176,14 @@
   animation: slideUp var(--transition-slow) cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-slideIn {
+  animation: slideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Slash command popup: tippy box is transparent so inner #slash-command bg shows at corners */
 .tippy-box:has(#slash-command) {
   background: transparent;
