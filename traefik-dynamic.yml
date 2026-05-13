@@ -1,0 +1,110 @@
+# Traefik Dynamic Configuration
+# Routers, services, and middlewares defined here.
+# Loaded via file provider (see traefik.yml).
+
+http:
+  # ─── Middlewares ──────────────────────────────────────────────
+  middlewares:
+    # Strip /ws prefix so workspace-api sees native /api/* paths
+    strip-ws:
+      stripPrefix:
+        prefixes:
+          - "/ws"
+
+    # Strip /notes prefix for note-api
+    strip-notes:
+      stripPrefix:
+        prefixes:
+          - "/notes"
+
+    # Strip /kanban prefix for kanban-api
+    strip-kanban:
+      stripPrefix:
+        prefixes:
+          - "/kanban"
+
+    # JWT ForwardAuth — validates token via auth-service
+    auth-middleware:
+      forwardAuth:
+        address: "http://auth-service:3010/verify"
+        authResponseHeaders:
+          - "X-User-ID"
+          - "X-User-Email"
+          - "X-User-Role"
+        trustForwardHeader: true
+
+    # Chain: strip prefix then apply auth
+    ws-auth-chain:
+      chain:
+        middlewares:
+          - strip-ws
+          - auth-middleware
+
+  # ─── Services (upstream) ─────────────────────────────────────
+  services:
+    workspace-api:
+      loadBalancer:
+        servers:
+          - url: "http://workspace-api:3001"
+
+    note-api:
+      loadBalancer:
+        servers:
+          - url: "http://note-api:3000"
+
+    kanban-api:
+      loadBalancer:
+        servers:
+          - url: "http://kanban:8000"
+
+    web-frontend:
+      loadBalancer:
+        servers:
+          - url: "http://web:5173"
+
+  # ─── Routers (inbound) ───────────────────────────────────────
+  routers:
+    # Workspace API — auth routes (login, register), bypass JWT
+    ws-api-auth:
+      rule: "PathPrefix(`/ws/api/auth`)"
+      service: workspace-api
+      middlewares:
+        - strip-ws
+      priority: 100
+
+    # Workspace API — Socket.IO connections, bypass JWT (uses handshake token)
+    ws-api-socket:
+      rule: "PathPrefix(`/ws/socket.io`)"
+      service: workspace-api
+      middlewares:
+        - strip-ws
+      priority: 100
+
+    # Workspace API — all other routes (requires auth)
+    ws-api:
+      rule: "PathPrefix(`/ws`)"
+      service: workspace-api
+      middlewares:
+        - ws-auth-chain
+
+    # Note API — all routes (requires auth)
+    note-api:
+      rule: "PathPrefix(`/notes`)"
+      service: note-api
+      middlewares:
+        - strip-notes
+        - auth-middleware
+
+    # Kanban API — all routes (requires auth)
+    kanban-api:
+      rule: "PathPrefix(`/kanban`)"
+      service: kanban-api
+      middlewares:
+        - strip-kanban
+        - auth-middleware
+
+    # Frontend — catch-all (no auth)
+    web:
+      rule: "PathPrefix(`/`)"
+      service: web-frontend
+      priority: 1

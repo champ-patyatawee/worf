@@ -22,7 +22,7 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 
 # Copy package files
 COPY package*.json ./
-RUN npm ci --only=production=false
+RUN npm install
 
 # Copy prisma schema
 COPY prisma ./prisma/

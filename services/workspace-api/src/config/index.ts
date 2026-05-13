@@ -12,6 +12,7 @@ const corsOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'http://web:5173',
+  'http://traefik',
   clientUrl,
 ].filter((v, i, a) => v && a.indexOf(v) === i);
 

@@ -5,6 +5,18 @@ import { config } from '../config';
 
 export function authenticate(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   try {
+    // If request comes through Traefik gateway, trust X-User-* headers
+    const proxyUserId = req.headers['x-user-id'] as string | undefined;
+    if (proxyUserId) {
+      req.user = {
+        userId: proxyUserId,
+        email: (req.headers['x-user-email'] as string) || '',
+        role: (req.headers['x-user-role'] as string) || 'user',
+      };
+      next();
+      return;
+    }
+
     const authHeader = req.headers.authorization;
     
     if (!authHeader) {
@@ -39,6 +51,18 @@ export function authenticate(req: AuthenticatedRequest, res: Response, next: Nex
 
 export function optionalAuth(req: AuthenticatedRequest, _res: Response, next: NextFunction): void {
   try {
+    // If request comes through Traefik gateway, trust X-User-* headers
+    const proxyUserId = req.headers['x-user-id'] as string | undefined;
+    if (proxyUserId) {
+      req.user = {
+        userId: proxyUserId,
+        email: (req.headers['x-user-email'] as string) || '',
+        role: (req.headers['x-user-role'] as string) || 'user',
+      };
+      next();
+      return;
+    }
+
     const authHeader = req.headers.authorization;
     
     if (authHeader) {
