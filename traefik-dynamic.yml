@@ -72,12 +72,10 @@ http:
         - strip-ws
       priority: 100
 
-    # Workspace API — Socket.IO connections, bypass JWT (uses handshake token)
+    # Workspace API — Socket.IO connections (all namespaces), bypass JWT (uses handshake token)
     ws-api-socket:
-      rule: "PathPrefix(`/ws/socket.io`)"
+      rule: "PathPrefix(`/socket.io`) || PathPrefix(`/ws/socket.io`)"
       service: workspace-api
-      middlewares:
-        - strip-ws
       priority: 100
 
     # Workspace API — all other routes (requires auth)

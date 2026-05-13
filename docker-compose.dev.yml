@@ -185,7 +185,7 @@ services:
     environment:
       TRAEFIK_URL: http://traefik
       VITE_API_URL: /ws
-      VITE_WS_URL: ws://localhost/ws
+      VITE_WS_URL: /ws
       VITE_PROXY_URL: /ws
       VITE_NOTE_API_URL: /notes
       VITE_KANBAN_API_URL: /kanban

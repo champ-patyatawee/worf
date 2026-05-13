@@ -1,0 +1,114 @@
+# E2E Docker Compose - End-to-End Testing
+# Usage: docker compose -f docker-compose.e2e.yml up -d
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: e2e_postgres
+    environment:
+      POSTGRES_USER: workspace
+      POSTGRES_PASSWORD: workspace_dev
+      POSTGRES_DB: workspace
+    ports:
+      - "5432:5432"
+    volumes:
+      - e2e_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workspace -d workspace"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - e2e_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: e2e_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - e2e_redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - e2e_network
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: e2e_server
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/workspace
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-secret-change-in-prod
+      NODE_ENV: development
+      PORT: 3001
+      CLIENT_URL: http://frontend:5173
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - e2e_network
+
+  frontend:
+    build:
+      context: ./apps/workspace-web
+      dockerfile: Dockerfile
+    container_name: e2e_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://server:3001
+      VITE_WS_URL: ws://server:3001
+      VITE_PROXY_URL: http://server:3001
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - server
+    networks:
+      - e2e_network
+
+  client:
+    build:
+      context: ./apps/workspace-web
+      dockerfile: Dockerfile.client-e2e
+    container_name: e2e_client
+    environment:
+      VITE_API_URL: http://server:3001
+      VITE_WS_URL: ws://server:3001
+      VITE_PROXY_URL: http://server:3001
+      PLAYWRIGHT_BASE_URL: http://frontend:5173
+    ports:
+      - "9323:9323"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - server
+      - frontend
+    networks:
+      - e2e_network
+
+volumes:
+  e2e_postgres_data:
+  e2e_redis_data:
+  playwright_cache:
+
+networks:
+  e2e_network:
+    driver: bridge

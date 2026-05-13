@@ -1,7 +1,8 @@
 import { io, Socket } from 'socket.io-client';
 import type { Channel, Message, PresenceUpdate } from '@/types';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'http://localhost:3001';
+// Connect to socket.io on the same origin. Vite proxy routes it to the backend.
+const WS_URL = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
 
 export type SocketEventHandler = (...args: unknown[]) => void;
 

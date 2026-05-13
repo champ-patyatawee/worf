@@ -21,6 +21,11 @@ export default defineConfig({
       ? // ── Docker Compose mode: proxy through Traefik ──────────
         {
           // Traefik handles path stripping and auth. No rewrite needed.
+          '/socket.io': {
+            target: process.env.TRAEFIK_URL,
+            changeOrigin: true,
+            ws: true,
+          },
           '/ws': {
             target: process.env.TRAEFIK_URL,
             changeOrigin: true,
