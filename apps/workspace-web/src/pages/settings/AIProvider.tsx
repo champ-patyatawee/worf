@@ -17,30 +17,25 @@ interface AIProvider {
 
 const providerOptions = [
   { value: 'openai', label: 'OpenAI' },
+  { value: 'claude', label: 'Claude' },
   { value: 'openrouter', label: 'OpenRouter' },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'google', label: 'Google' },
-  { value: 'azure', label: 'Azure OpenAI' },
   { value: 'custom', label: 'Custom (OpenAI compatible)' },
 ];
 
 // Default API URLs per provider
 const defaultApiUrls: Record<string, string> = {
   openai: 'https://api.openai.com/v1',
+  claude: 'https://api.anthropic.com',
   openrouter: 'https://openrouter.ai/api/v1/chat/completions',
-  anthropic: 'https://api.anthropic.com',
-  google: 'https://generativelanguage.googleapis.com/v1',
-  azure: 'https://<your-resource>.openai.azure.com',
-  custom: 'https://api.example.com/v1',
+  custom: '',
 };
 
 // Default models per provider
 const defaultModels: Record<string, string[]> = {
   openai: ['gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo'],
-  anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'],
-  google: ['gemini-1.5-pro', 'gemini-1.5-flash'],
-  azure: ['gpt-4', 'gpt-35-turbo'],
-  custom: ['gpt-4o'],
+  claude: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'],
+  openrouter: ['gpt-4o', 'claude-3-5-sonnet-20241022'],
+  custom: [],
 };
 
 interface ProviderFormData {
@@ -266,12 +261,10 @@ function ProviderModal({
     switch (providerValue) {
       case 'openai':
         return 'https://api.openai.com/v1';
-      case 'anthropic':
+      case 'claude':
         return 'https://api.anthropic.com';
-      case 'google':
-        return 'https://generativelanguage.googleapis.com/v1';
-      case 'azure':
-        return 'https://your-resource.openai.azure.com';
+      case 'openrouter':
+        return 'https://openrouter.ai/api/v1/chat/completions';
       default:
         return '';
     }
