@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Login Flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible({ timeout: 10000 });
   });
 
   test('should show validation error for missing email', async ({ page }) => {
@@ -41,13 +41,23 @@ test.describe('Login Flow', () => {
     await page.getByRole('link', { name: 'Create one' }).click();
 
     await expect(page).toHaveURL(/\/register/);
-    await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /create account/i })).toBeVisible();
   });
 
   test('should show login form with all fields', async ({ page }) => {
     await expect(page.locator('#email')).toBeVisible();
     await expect(page.locator('#password')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign In' })).toBeVisible();
+  });
+
+  test('should login as admin with seeded credentials', async ({ page }) => {
+    // Use the seeded admin user from prisma/seed.ts
+    await page.locator('#email').fill('admin@worf.dev');
+    await page.locator('#password').fill('123456');
+    await page.getByRole('button', { name: 'Sign In' }).click();
+
+    // Should redirect to channels page after successful admin login
+    await expect(page).toHaveURL(/\/channels/, { timeout: 10000 });
   });
 
   test('should login successfully with valid credentials', async ({ page }) => {

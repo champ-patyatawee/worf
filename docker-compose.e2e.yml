@@ -1,7 +1,12 @@
-# E2E Docker Compose - End-to-End Testing
-# Usage: docker compose -f docker-compose.e2e.yml up -d
+# E2E Docker Compose - Testing Environment
+# Usage:
+#   Start: docker compose -f docker-compose.e2e.yml up -d
+#   Run Playwright: docker compose -f docker-compose.e2e.yml run --rm playwright
+#   Run API tests:  docker compose -f docker-compose.e2e.yml run --rm api-tests
+#   Cleanup:        docker compose -f docker-compose.e2e.yml down -v
 
 services:
+  # ─── Database ────────────────────────────────────────────────
   postgres:
     image: pgvector/pgvector:pg15
     container_name: e2e_postgres
@@ -9,53 +14,67 @@ services:
       POSTGRES_USER: workspace
       POSTGRES_PASSWORD: workspace_dev
       POSTGRES_DB: workspace
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - e2e_postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/init.sh
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U workspace -d workspace"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 3s
+      retries: 10
       start_period: 10s
     networks:
       - e2e_network
 
+  # ─── Cache ───────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: e2e_redis
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     volumes:
       - e2e_redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 5s
+      timeout: 3s
+      retries: 10
       start_period: 5s
     networks:
       - e2e_network
 
-  server:
+  # ─── Auth Service (JWT validation) ──────────────────────────
+  auth-service:
     build:
-      context: .
-      dockerfile: Dockerfile.server
-    container_name: e2e_server
-    ports:
-      - "3001:3001"
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: e2e_auth_service
+    expose:
+      - "3010"
+    environment:
+      JWT_SECRET: e2e-test-secret
+      PORT: 3010
+    networks:
+      - e2e_network
+
+  # ─── Workspace API ───────────────────────────────────────────
+  workspace-api:
+    build:
+      context: ./services/workspace-api
+      dockerfile: Dockerfile
+    container_name: e2e_workspace_api
+    expose:
+      - "3001"
     environment:
       DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/workspace
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: dev-secret-change-in-prod
-      NODE_ENV: development
+      JWT_SECRET: e2e-test-secret
+      NODE_ENV: test
       PORT: 3001
-      CLIENT_URL: http://frontend:5173
-    volumes:
-      - ./server:/app
-      - /app/node_modules
+      CLIENT_URL: http://client:5173
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,50 +83,179 @@ services:
     networks:
       - e2e_network
 
-  frontend:
+  # ─── Note API ────────────────────────────────────────────────
+  note-api:
     build:
-      context: ./apps/workspace-web
+      context: ./services/note-api
       dockerfile: Dockerfile
-    container_name: e2e_frontend
-    ports:
-      - "5173:5173"
+    container_name: e2e_note_api
+    expose:
+      - "3000"
     environment:
-      VITE_API_URL: http://server:3001
-      VITE_WS_URL: ws://server:3001
-      VITE_PROXY_URL: http://server:3001
-    volumes:
-      - ./client:/app
-      - /app/node_modules
+      DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/note?schema=public
+      WORKSPACE_DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/workspace
+      NODE_ENV: test
+      PORT: 3000
     depends_on:
-      - server
+      postgres:
+        condition: service_healthy
     networks:
       - e2e_network
 
+  # ─── Kanban API ──────────────────────────────────────────────
+  kanban:
+    build:
+      context: ./services/kanban-api
+      dockerfile: Dockerfile
+    container_name: e2e_kanban
+    expose:
+      - "8000"
+    environment:
+      KANBAN_DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/kanban
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: workspace
+      DB_PASSWORD: workspace_dev
+      DB_NAME: workspace
+      PORT: 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - e2e_network
+
+  # ─── Frontend (Vite dev server, direct proxying) ────────────
   client:
     build:
       context: ./apps/workspace-web
-      dockerfile: Dockerfile.client-e2e
+      dockerfile: Dockerfile
     container_name: e2e_client
+    expose:
+      - "5173"
     environment:
-      VITE_API_URL: http://server:3001
-      VITE_WS_URL: ws://server:3001
-      VITE_PROXY_URL: http://server:3001
-      PLAYWRIGHT_BASE_URL: http://frontend:5173
-    ports:
-      - "9323:9323"
+      # No TRAEFIK_URL — falls back to local dev mode (direct proxying)
+      # Proxy target env vars (for Vite server-side proxy config)
+      WORKSPACE_API_URL: http://workspace-api:3001
+      NOTE_API_URL: http://note-api:3000
+      KANBAN_API_URL: http://kanban:8000
+      # Browser env vars (for client-side API calls via Vite proxy)
+      VITE_API_URL: /ws
+      VITE_WS_URL: /ws
+      VITE_PROXY_URL: /ws
+      VITE_NOTE_API_URL: /notes
+      VITE_KANBAN_API_URL: /kanban
+    command: ["sh", "-c", "npm install && npx vite --host 0.0.0.0 --port 5173"]
     volumes:
-      - ./client:/app
+      - ./apps/workspace-web:/app
       - /app/node_modules
     depends_on:
-      - server
-      - frontend
+      - workspace-api
     networks:
       - e2e_network
+
+  # ─── E2E Test Runner (Playwright) ────────────────────────────
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.58.2-jammy
+    container_name: e2e_playwright
+    working_dir: /app
+    volumes:
+      - ./apps/workspace-web/tests:/app/tests
+      - ./apps/workspace-web/playwright.config.ts:/app/playwright.config.ts
+      - ./apps/workspace-web/package.json:/app/package.json
+      - ./apps/workspace-web/node_modules:/app/node_modules
+      - ./apps/workspace-web/src:/app/src
+      - ./apps/workspace-web/tsconfig.json:/app/tsconfig.json
+      - ./apps/workspace-web/vite.config.ts:/app/vite.config.ts
+      - ./apps/workspace-web/index.html:/app/index.html
+      - ./apps/workspace-web/postcss.config.js:/app/postcss.config.js
+      - ./apps/workspace-web/tailwind.config.cjs:/app/tailwind.config.cjs
+    environment:
+      PLAYWRIGHT_BASE_URL: http://client:5173
+      API_URL: http://workspace-api:3001
+      CI: "true"
+      DOCKER: "true"
+    command: ["npx", "playwright", "test", "--reporter=list"]
+    depends_on:
+      - client
+      - workspace-api
+    networks:
+      - e2e_network
+    profiles:
+      - test-runner
+
+  # ─── API Test Runner (Jest) ─────────────────────────────────
+  api-tests:
+    build:
+      context: ./services/workspace-api
+      dockerfile: Dockerfile
+    container_name: e2e_api_tests
+    working_dir: /app
+    command: ["npm", "run", "test:e2e"]
+    volumes:
+      - ./services/workspace-api/tests:/app/tests
+      - ./services/workspace-api/jest.e2e.config.cjs:/app/jest.e2e.config.cjs
+      - ./services/workspace-api/tsconfig.json:/app/tsconfig.json
+    environment:
+      DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/workspace
+      JWT_SECRET: e2e-test-secret
+      NODE_ENV: test
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - e2e_network
+    profiles:
+      - test-runner
+
+# ─── Database Init (run automatically on startup) ─────────────
+  workspace-api-init:
+    build:
+      context: ./services/workspace-api
+      dockerfile: Dockerfile
+    command: ["sh", "-c", "npx prisma db push && npx tsx prisma/seed.ts"]
+    environment:
+      DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/workspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - e2e_network
+    profiles:
+      - db-init
+
+  note-api-init:
+    build:
+      context: ./services/note-api
+      dockerfile: Dockerfile
+    command: ["sh", "-c", "npx prisma db push && npx tsx prisma/seed.ts"]
+    environment:
+      DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/note
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - e2e_network
+    profiles:
+      - db-init
+
+  kanban-api-init:
+    build:
+      context: ./services/kanban-api
+      dockerfile: Dockerfile
+    command: ["sh", "-c", "npx prisma db push"]
+    environment:
+      KANBAN_DATABASE_URL: postgresql://workspace:workspace_dev@postgres:5432/kanban
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - e2e_network
+    profiles:
+      - db-init
 
 volumes:
   e2e_postgres_data:
   e2e_redis_data:
-  playwright_cache:
 
 networks:
   e2e_network:

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Register Flow', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/register');
-    await expect(page.getByRole('heading', { name: /create your account/i })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /create account/i })).toBeVisible({ timeout: 10000 });
   });
 
   test('should show validation error for missing name', async ({ page }) => {

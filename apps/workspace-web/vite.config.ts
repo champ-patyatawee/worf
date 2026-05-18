@@ -2,9 +2,15 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// In Docker Compose, services are reachable via Traefik on the internal network.
-// When running locally on the host, proxy directly to each service.
+// In Docker Compose with Traefik, services are reachable via Traefik on the
+// internal network. When running locally or in E2E mode (no TRAEFIK_URL),
+// proxy directly to each service.
 const usingTraefik = !!process.env.TRAEFIK_URL;
+
+// Proxy targets for local/E2E mode (no Traefik)
+const wsTarget = process.env.WORKSPACE_API_URL || process.env.VITE_API_URL || 'http://localhost:3001';
+const noteTarget = process.env.NOTE_API_URL || process.env.VITE_NOTE_API_URL || 'http://localhost:3000';
+const kanbanTarget = process.env.KANBAN_API_URL || process.env.VITE_KANBAN_API_URL || 'http://localhost:8000';
 
 export default defineConfig({
   plugins: [react()],
@@ -20,7 +26,6 @@ export default defineConfig({
     proxy: usingTraefik
       ? // ── Docker Compose mode: proxy through Traefik ──────────
         {
-          // Traefik handles path stripping and auth. No rewrite needed.
           '/socket.io': {
             target: process.env.TRAEFIK_URL,
             changeOrigin: true,
@@ -40,62 +45,62 @@ export default defineConfig({
             changeOrigin: true,
           },
         }
-      : // ── Local dev mode: proxy directly to services ──────────
+      : // ── Local dev / E2E mode: proxy directly to services ──
         {
           // Strip /ws prefix, forward to workspace-api
           '/ws': {
-            target: process.env.VITE_API_URL || 'http://localhost:3001',
+            target: wsTarget,
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/ws/, ''),
             ws: true,
           },
           // Strip /notes prefix, forward to note-api
           '/notes': {
-            target: process.env.VITE_NOTE_API_URL || 'http://localhost:3000',
+            target: noteTarget,
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/notes/, ''),
           },
           // Strip /kanban prefix, forward to kanban-api
           '/kanban': {
-            target: process.env.VITE_KANBAN_API_URL || 'http://localhost:8000',
+            target: kanbanTarget,
             changeOrigin: true,
             rewrite: (path) => path.replace(/^\/kanban/, ''),
           },
-          // Legacy direct paths (backward compat for old .env values)
+          // Direct /api/* routes (e2e tests use /api/auth/register)
           '/api/boards': {
-            target: process.env.VITE_KANBAN_API_URL || 'http://localhost:8000',
+            target: kanbanTarget,
             changeOrigin: true,
           },
           '/api/tasks': {
-            target: process.env.VITE_KANBAN_API_URL || 'http://localhost:8000',
+            target: kanbanTarget,
             changeOrigin: true,
           },
           '/api/settings': {
-            target: process.env.VITE_NOTE_API_URL || 'http://localhost:3000',
+            target: noteTarget,
             changeOrigin: true,
           },
           '/api/folders': {
-            target: process.env.VITE_NOTE_API_URL || 'http://localhost:3000',
+            target: noteTarget,
             changeOrigin: true,
           },
           '/api/pages': {
-            target: process.env.VITE_NOTE_API_URL || 'http://localhost:3000',
+            target: noteTarget,
             changeOrigin: true,
           },
           '/api/ai': {
-            target: process.env.VITE_NOTE_API_URL || 'http://localhost:3000',
+            target: noteTarget,
             changeOrigin: true,
           },
           '/api': {
-            target: process.env.VITE_PROXY_URL || 'http://localhost:3001',
+            target: wsTarget,
             changeOrigin: true,
           },
           '/socket.io': {
-            target: process.env.VITE_PROXY_URL || 'http://localhost:3001',
+            target: wsTarget,
             ws: true,
           },
           '/uploads': {
-            target: process.env.VITE_PROXY_URL || 'http://localhost:3001',
+            target: wsTarget,
             changeOrigin: true,
           },
         },
