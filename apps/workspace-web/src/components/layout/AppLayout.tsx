@@ -11,6 +11,7 @@ import { Modal } from '@/components/common/Modal';
 import { ChannelForm } from '@/components/forms/ChannelForm';
 import { Menu, PanelLeftClose } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { FloatingPlayer } from './FloatingPlayer';
 
 export function AppLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -229,6 +230,8 @@ export function AppLayout() {
           <ChannelForm onClose={closeModal} />
         </Modal>
       )}
+
+      <FloatingPlayer />
     </div>
   );
 }

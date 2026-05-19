@@ -9,6 +9,8 @@ import {
   ProjectsWidget,
   TeamMembersWidget,
   NoteOverviewWidget,
+  SpotifyWidget,
+  YouTubeMusicWidget,
 } from '@/components/dashboard';
 
 const LAYOUT_KEY = 'dashboard-layout';
@@ -26,6 +28,8 @@ const DEFAULT_LAYOUT: WidgetItem[] = [
   { id: 'pomodoro', rect: { x: 0, y: 244, w: 300, h: 220 } },
   { id: 'team', rect: { x: 312, y: 244, w: 300, h: 220 } },
   { id: 'notes', rect: { x: 624, y: 244, w: 300, h: 220 } },
+  { id: 'spotify', rect: { x: 0, y: 488, w: 420, h: 280 } },
+  { id: 'ytmusic', rect: { x: 432, y: 488, w: 420, h: 280 } },
 ];
 
 function loadLayout(): WidgetItem[] {
@@ -33,7 +37,17 @@ function loadLayout(): WidgetItem[] {
     const saved = localStorage.getItem(LAYOUT_KEY);
     if (saved) {
       const parsed = JSON.parse(saved) as WidgetItem[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Merge in any new default widgets that aren't in the saved layout
+        const savedIds = new Set(parsed.map((w) => w.id));
+        const missing = DEFAULT_LAYOUT.filter((w) => !savedIds.has(w.id));
+        if (missing.length > 0) {
+          const merged = [...parsed, ...missing];
+          localStorage.setItem(LAYOUT_KEY, JSON.stringify(merged));
+          return merged;
+        }
+        return parsed;
+      }
     }
   } catch {}
   return DEFAULT_LAYOUT;
@@ -51,6 +65,8 @@ const WIDGET_MAP: Record<string, React.ReactNode> = {
   pomodoro: <PomodoroWidget />,
   team: <TeamMembersWidget />,
   notes: <NoteOverviewWidget />,
+  spotify: <SpotifyWidget />,
+  ytmusic: <YouTubeMusicWidget />,
 };
 
 export function Dashboard() {

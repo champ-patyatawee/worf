@@ -21,6 +21,7 @@ import embeddingsRoutes from './routes/embeddings';
 import toolRoutes from './routes/tools';
 import promptTemplateRoutes from './routes/promptTemplates';
 import chatSessionRoutes from './routes/chatSessions';
+import oembedRoutes from './routes/oembed';
 
 // Register built-in tools (auto-registers on import)
 import './tools/webfetch';
@@ -71,6 +72,7 @@ app.use('/api/chat-sessions', chatSessionRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/embeddings', embeddingsRoutes);
 app.use('/api/tools', toolRoutes);
+app.use('/api/oembed', oembedRoutes);
 
 // Error handling
 app.use(notFoundHandler);
