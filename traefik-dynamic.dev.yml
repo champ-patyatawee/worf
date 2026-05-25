@@ -1,5 +1,5 @@
-# Traefik Dynamic Configuration — All-in-One
-# All services run on localhost within the container.
+# Traefik Dynamic Configuration — Dev Compose
+# Services are on a Docker network, reachable by service name.
 
 http:
   middlewares:
@@ -20,7 +20,7 @@ http:
 
     auth-middleware:
       forwardAuth:
-        address: "http://localhost:3010/verify"
+        address: "http://auth-service:3010/verify"
         authResponseHeaders:
           - "X-User-ID"
           - "X-User-Email"
@@ -37,22 +37,22 @@ http:
     workspace-api:
       loadBalancer:
         servers:
-          - url: "http://localhost:3001"
+          - url: "http://workspace-api:3001"
 
     note-api:
       loadBalancer:
         servers:
-          - url: "http://localhost:3000"
+          - url: "http://note-api:3000"
 
     kanban-api:
       loadBalancer:
         servers:
-          - url: "http://localhost:8000"
+          - url: "http://kanban:8000"
 
     web-frontend:
       loadBalancer:
         servers:
-          - url: "http://localhost:5173"
+          - url: "http://web:5173"
 
   routers:
     ws-api-auth:

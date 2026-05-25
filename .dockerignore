@@ -1,0 +1,69 @@
+# Dependencies — installed inside container
+**/node_modules
+**/.npm
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment files (may contain secrets)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+
+# IDE and OS files
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Build output
+**/dist
+**/build
+**/.next
+**/out
+
+# Docker files
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# Logs and temp
+*.log
+tmp/
+temp/
+.tmp
+.coverage
+.nyc_output
+
+# Test files (not needed at runtime)
+**/*.test.ts
+**/*.spec.ts
+**/tests/
+**/__tests__/
+**/test/
+
+# Docs and readme
+README.md
+LICENSE
+
+# Archives and caches
+*.tar.gz
+*.zip
+.npm-cache
+.yarn-cache
+.cache
+
+# Project-specific
+postgres/
+scripts/
+graphify-out/
+plan/
+
+# Traefik config — included in build context

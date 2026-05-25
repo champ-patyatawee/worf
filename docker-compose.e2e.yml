@@ -46,6 +46,25 @@ services:
     networks:
       - e2e_network
 
+  # ─── API Gateway ─────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.1
+    container_name: e2e_traefik
+    command:
+      - "--providers.file.filename=/etc/traefik/dynamic.yml"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.traefik.address=:8080"
+      - "--api.dashboard=true"
+    expose:
+      - "80"
+      - "8080"
+    volumes:
+      - ./traefik.yml:/etc/traefik/traefik.yml
+      - ./traefik-dynamic.e2e.yml:/etc/traefik/dynamic.yml
+    networks:
+      - e2e_network
+
   # ─── Auth Service (JWT validation) ──────────────────────────
   auth-service:
     build:
@@ -124,7 +143,7 @@ services:
     networks:
       - e2e_network
 
-  # ─── Frontend (Vite dev server, direct proxying) ────────────
+  # ─── Frontend (Vite dev server, proxied through Traefik) ────
   client:
     build:
       context: ./apps/workspace-web
@@ -133,11 +152,8 @@ services:
     expose:
       - "5173"
     environment:
-      # No TRAEFIK_URL — falls back to local dev mode (direct proxying)
-      # Proxy target env vars (for Vite server-side proxy config)
-      WORKSPACE_API_URL: http://workspace-api:3001
-      NOTE_API_URL: http://note-api:3000
-      KANBAN_API_URL: http://kanban:8000
+      # TRAEFIK_URL — Vite proxies API calls through Traefik
+      TRAEFIK_URL: http://traefik
       # Browser env vars (for client-side API calls via Vite proxy)
       VITE_API_URL: /ws
       VITE_WS_URL: /ws
@@ -149,6 +165,7 @@ services:
       - ./apps/workspace-web:/app
       - /app/node_modules
     depends_on:
+      - traefik
       - workspace-api
     networks:
       - e2e_network
@@ -170,12 +187,13 @@ services:
       - ./apps/workspace-web/postcss.config.js:/app/postcss.config.js
       - ./apps/workspace-web/tailwind.config.cjs:/app/tailwind.config.cjs
     environment:
-      PLAYWRIGHT_BASE_URL: http://client:5173
+      PLAYWRIGHT_BASE_URL: http://traefik
       API_URL: http://workspace-api:3001
       CI: "true"
       DOCKER: "true"
     command: ["npx", "playwright", "test", "--reporter=list"]
     depends_on:
+      - traefik
       - client
       - workspace-api
     networks:

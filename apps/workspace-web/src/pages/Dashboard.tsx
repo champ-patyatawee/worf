@@ -21,15 +21,15 @@ export interface WidgetItem {
 }
 
 const DEFAULT_LAYOUT: WidgetItem[] = [
-  { id: 'calendar', rect: { x: 0, y: 0, w: 300, h: 220 } },
-  { id: 'clock', rect: { x: 312, y: 0, w: 300, h: 220 } },
-  { id: 'tasks', rect: { x: 624, y: 0, w: 300, h: 220 } },
-  { id: 'projects', rect: { x: 936, y: 0, w: 300, h: 220 } },
-  { id: 'pomodoro', rect: { x: 0, y: 244, w: 300, h: 220 } },
-  { id: 'team', rect: { x: 312, y: 244, w: 300, h: 220 } },
-  { id: 'notes', rect: { x: 624, y: 244, w: 300, h: 220 } },
-  { id: 'spotify', rect: { x: 0, y: 488, w: 420, h: 280 } },
-  { id: 'ytmusic', rect: { x: 432, y: 488, w: 420, h: 280 } },
+  { id: 'pomodoro', rect: { x: 0, y: 2, w: 662, h: 178 } },
+  { id: 'calendar', rect: { x: 0, y: 197, w: 344, h: 274 } },
+  { id: 'clock', rect: { x: 369, y: 203, w: 292, h: 257 } },
+  { id: 'projects', rect: { x: 691, y: 8, w: 371, h: 448 } },
+  { id: 'team', rect: { x: 1080, y: 8, w: 307, h: 446 } },
+  { id: 'tasks', rect: { x: 0, y: 486, w: 190, h: 232 } },
+  { id: 'notes', rect: { x: 201, y: 489, w: 361, h: 237 } },
+  { id: 'spotify', rect: { x: 577, y: 483, w: 433, h: 249 } },
+  { id: 'ytmusic', rect: { x: 1026, y: 492, w: 400, h: 231 } },
 ];
 
 function loadLayout(): WidgetItem[] {

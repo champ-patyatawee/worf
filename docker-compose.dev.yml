@@ -22,7 +22,7 @@ services:
       - "8080:8080"
     volumes:
       - ./traefik.yml:/etc/traefik/traefik.yml
-      - ./traefik-dynamic.yml:/etc/traefik/dynamic.yml
+      - ./traefik-dynamic.dev.yml:/etc/traefik/dynamic.yml
     networks:
       - dev_network
 
