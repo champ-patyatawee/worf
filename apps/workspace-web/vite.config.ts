@@ -22,7 +22,7 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
-    allowedHosts: ['client', 'localhost', '127.0.0.1', 'frontend'],
+    allowedHosts: ['client', 'traefik', 'localhost', '127.0.0.1', 'frontend'],
     proxy: usingTraefik
       ? // ── Docker Compose mode: proxy through Traefik ──────────
         {

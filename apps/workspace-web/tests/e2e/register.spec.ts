@@ -46,7 +46,7 @@ test.describe('Register Flow', () => {
     await page.getByRole('link', { name: 'Sign in' }).click();
 
     await expect(page).toHaveURL(/\/login/);
-    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   });
 
   test('should show registration form with all fields', async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe('Register Flow', () => {
     const existingEmail = `existing_${Date.now()}@example.com`;
     const testPassword = 'SecurePass123!';
 
-    await page.request.post('/api/auth/register', {
+    await page.request.post('/ws/api/auth/register', {
       data: { email: existingEmail, password: testPassword, name: 'Existing User' },
     });
 

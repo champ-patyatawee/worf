@@ -66,8 +66,8 @@ test.describe('Login Flow', () => {
     const testPassword = 'SecurePass123!';
     const testName = 'Login Success User';
 
-    await page.request.post('/api/auth/register', {
-      data: { email: testEmail, password: testPassword, name: testName },
+await page.request.post('/ws/api/auth/register', {
+      data: { email: testEmail, password: testPassword, name: 'Login Success User' },
     });
 
     // Now login with the registered credentials
@@ -85,7 +85,7 @@ test.describe('Login Flow', () => {
     const testPassword = 'SecurePass123!';
     const testName = 'Wrong Password User';
 
-    await page.request.post('/api/auth/register', {
+    await page.request.post('/ws/api/auth/register', {
       data: { email: testEmail, password: testPassword, name: testName },
     });
 

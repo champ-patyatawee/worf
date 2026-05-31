@@ -66,7 +66,7 @@ test.describe('Realtime Multi-User Messaging', () => {
     const registeredUsers: { email: string; password: string; token: string }[] = [];
 
     for (const user of newUsers) {
-      const resp = await setupPage.request.post('/api/auth/register', {
+      const resp = await setupPage.request.post('/ws/api/auth/register', {
         data: user,
       });
       expect(resp.ok()).toBeTruthy();

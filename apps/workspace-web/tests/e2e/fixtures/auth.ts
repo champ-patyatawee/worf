@@ -15,7 +15,7 @@ export interface AuthFixtures {
 }
 
 async function loginViaApi(request: APIRequestContext, user: TestUser): Promise<{ token: string; userId: string }> {
-  const response = await request.post('/api/auth/register', {
+  const response = await request.post('/ws/api/auth/register', {
     data: user,
   });
 
@@ -26,7 +26,7 @@ async function loginViaApi(request: APIRequestContext, user: TestUser): Promise<
   }
 
   // If registration fails (user exists), try logging in
-  const loginResponse = await request.post('/api/auth/login', {
+  const loginResponse = await request.post('/ws/api/auth/login', {
     data: {
       email: user.email,
       password: user.password,
@@ -59,7 +59,7 @@ export const test = base.extend<AuthFixtures>({
         ...user,
       };
 
-      const response = await request.post('/api/auth/register', {
+      const response = await request.post('/ws/api/auth/register', {
         data: newUser,
       });
 
@@ -73,7 +73,7 @@ export const test = base.extend<AuthFixtures>({
 
   loginUser: async ({ request }, use) => {
     await use(async (user: TestUser) => {
-      const response = await request.post('/api/auth/login', {
+      const response = await request.post('/ws/api/auth/login', {
         data: {
           email: user.email,
           password: user.password,
@@ -101,12 +101,12 @@ export const test = base.extend<AuthFixtures>({
   loginAsUser: async ({ request }, use) => {
     await use(async (page: Page, user: TestUser) => {
       // First register the user via API
-      await request.post('/api/auth/register', {
+      await request.post('/ws/api/auth/register', {
         data: user,
       });
 
       // Then login to get the token
-      const loginResponse = await request.post('/api/auth/login', {
+      const loginResponse = await request.post('/ws/api/auth/login', {
         data: {
           email: user.email,
           password: user.password,
