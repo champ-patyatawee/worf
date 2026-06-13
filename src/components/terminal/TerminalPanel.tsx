@@ -3,6 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { Unicode11Addon } from "@xterm/addon-unicode11";
 import "@xterm/xterm/css/xterm.css";
 import { X, Plus, Minus, ArrowUp, ArrowDown, Maximize2, Minimize2 } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
@@ -96,9 +97,12 @@ export function TerminalPanel() {
           fontSize: terminalStore.fontSize,
           scrollback: 1000,
           fontFamily:
-            "'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'MesloLGS NF', 'FiraCode Nerd Font Mono', 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, 'Courier New', monospace",
+            "'JetBrainsMono Nerd Font', 'FiraCode Nerd Font', 'MesloLGS NF', 'JetBrains Mono', 'Fira Code', 'SF Mono', Menlo, 'Courier New', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Symbols Nerd Font', monospace",
           allowTransparency: true,
           theme: currentTheme,
+          allowProposedApi: true,
+          letterSpacing: 0.5,
+          lineHeight: 1.1,
         });
 
         const fitAddon = new FitAddon();
@@ -107,7 +111,23 @@ export function TerminalPanel() {
         term.loadAddon(fitAddon);
         term.loadAddon(searchAddon);
         term.loadAddon(webLinksAddon);
+        // Register and activate Unicode 11 width rules for correct emoji/Nerd Font sizing
+        logDebug(`about to create Unicode11Addon`);
+        const unicode11Addon = new Unicode11Addon();
+        logDebug(`about to load unicode11 addon`);
+        term.loadAddon(unicode11Addon);
+        logDebug(`unicode11 addon loaded successfully`);
+        logDebug(`about to activate unicode version 11`);
+        try {
+          term.unicode.activeVersion = '11';
+          logDebug(`unicode version set to: ${term.unicode.activeVersion}`);
+        } catch (e) {
+          logDebug(`ERROR setting unicode activeVersion: ${e instanceof Error ? e.message : String(e)}`);
+          // Don't re-throw - continue with terminal creation even if unicode fails
+        }
+        logDebug(`about to open xterm on div`);
         term.open(div);
+        logDebug(`xterm opened on div`);
         fitAddon.fit();  // Element is visible → correct dimensions ✅
 
         const dims = fitAddon.proposeDimensions();
@@ -119,6 +139,7 @@ export function TerminalPanel() {
         }
 
         xtermInstances.set(tab.id, { term, fitAddon, searchAddon, container: div });
+        logDebug(`instance stored in map for tab ${tab.id}, map size now ${xtermInstances.size}`);
 
         // Replay any buffered data (only on creation, not on tab switch)
         logDebug(`replaying buffer for tab ${tab.id}: ${tab.buffer.length} chunks`);
@@ -216,9 +237,11 @@ export function TerminalPanel() {
   // ── 3. Handle keyboard input ──
   useEffect(() => {
     const inst = activeTabId ? xtermInstances.get(activeTabId) : undefined;
+    logDebug(`keyboard effect: activeTabId=${activeTabId}, inst found=${!!inst}, instances in map=${xtermInstances.size}`);
     if (!inst) return;
 
     const disposable = inst.term.onData((data) => {
+      logDebug(`onData fired: data=${JSON.stringify(data)}, isRunning=${terminalStore.activeTab?.isRunning}`);
       const tab = terminalStore.activeTab;
       if (tab?.isRunning) {
         terminalStore.write(data);
@@ -226,7 +249,11 @@ export function TerminalPanel() {
         terminalStore.createTab();
       }
     });
-    return () => disposable.dispose();
+    logDebug(`onData handler registered successfully`);
+    return () => {
+      logDebug(`disposing onData handler for tab ${activeTabId}`);
+      disposable.dispose();
+    };
   }, [activeTabId]);
 
   // ── 5. Auto-resize ──

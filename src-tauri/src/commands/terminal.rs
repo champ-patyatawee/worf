@@ -339,6 +339,9 @@ fn build_shell_command() -> CommandBuilder {
         cmd.env("COLORTERM", "truecolor");
         // TERM_PROGRAM identifies the terminal emulator for compatibility checks.
         cmd.env("TERM_PROGRAM", "xterm.js");
+        // LANG/LC_CTYPE ensure proper locale handling for wide character support.
+        cmd.env("LANG", "en_US.UTF-8");
+        cmd.env("LC_CTYPE", "en_US.UTF-8");
     }
 
     cmd
@@ -367,6 +370,9 @@ fn build_shell_command_fallback() -> CommandBuilder {
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         cmd.env("TERM_PROGRAM", "xterm.js");
+        // LANG/LC_CTYPE ensure proper locale handling for wide character support.
+        cmd.env("LANG", "en_US.UTF-8");
+        cmd.env("LC_CTYPE", "en_US.UTF-8");
     }
 
     cmd
