@@ -11,6 +11,7 @@
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --config src-tauri/tauri.conf.release.json",
     "tauri:build:arm64": "tauri build --target aarch64-apple-darwin",
+    "tauri:build:universal": "tauri build --target universal-apple-darwin --config src-tauri/tauri.conf.release.json",
     "tauri:dev:webdriver": "tauri dev --features webdriver",
     "test": "vitest run",
     "test:watch": "vitest",
