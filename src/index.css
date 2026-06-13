@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg-primary: #F5F0E8;
+    --color-bg-secondary: #FFFFFF;
+    --color-bg-tertiary: #F9F7F2;
+    --color-bg-hover: #EDE9E0;
+    --color-bg-active: #E5E1D8;
+    --color-bg-overlay: rgba(0, 0, 0, 0.50);
+
+    --color-text-primary: #1A1A1A;
+    --color-text-secondary: #6B6B6B;
+    --color-text-tertiary: #9CA3AF;
+    --color-text-placeholder: #9CA3AF;
+
+    --color-border-primary: #1A1A1A;
+    --color-border-secondary: #E5E5E5;
+
+    --color-accent-primary: #7C5CFF;
+    --color-accent-primary-hover: #6A4AF0;
+    --color-accent-secondary: #C4B5FD;
+    --color-accent-subtle: rgba(124, 92, 255, 0.12);
+    --color-accent-gradient: linear-gradient(90deg, #7C5CFF, #F9A8D4);
+
+    --color-success: #4ADE80;
+    --color-warning: #FACC15;
+    --color-error: #FB7185;
+
+    --color-avatar-bg: #F9F7F2;
+    --color-avatar-text: #1A1A1A;
+
+    --shadow-card: 4px 4px 0px #0D0D0D;
+    --shadow-modal: 8px 8px 0px #0D0D0D;
+    --shadow-sm: 2px 2px 0px #0D0D0D;
+    --shadow-md: 4px 4px 0px #0D0D0D;
+
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    transition: background-color var(--transition-normal), color var(--transition-normal);
+  }
+
+  * {
+    border-color: var(--color-border-secondary);
+  }
+
+  ::selection {
+    background-color: rgba(124, 92, 255, 0.25);
+    color: var(--color-text-primary);
+  }
+}
+
+@layer components {
+  .btn-brutal {
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .btn-brutal:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 6px 6px 0px #0D0D0D;
+  }
+  .btn-brutal:active {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0px #0D0D0D;
+  }
+
+  .card-brutal {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .card-brutal:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 8px 8px 0px #0D0D0D;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-primary) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--color-border-primary);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-text-secondary);
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .transition-colors-fast {
+    transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn var(--transition-normal) ease-out;
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scaleIn {
+  animation: scaleIn var(--transition-normal) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slideUp {
+  animation: slideUp var(--transition-slow) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+.animate-slideIn {
+  animation: slideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
