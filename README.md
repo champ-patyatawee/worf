@@ -87,7 +87,13 @@ npx tauri dev
 ./run.sh
 ```
 
-### Debug
+### Default Credentials
+
+| Email | Password |
+|-------|----------|
+| `admin@worf.dev` | `123456` |
+
+### Setup
 
 ```bash
 # Launch with devtools/console visible
@@ -97,14 +103,7 @@ npx tauri dev -- --debug
 RUST_LOG=debug npx tauri dev
 ```
 
-### Tests
-
-```bash
-# Frontend tests (Vitest)
-npm test
-
-# Watch mode
-npm run test:watch
+## Re-initializing Database
 
 # Rust backend tests (SQLite in-memory)
 npm run test:rust
