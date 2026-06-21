@@ -1,7 +1,7 @@
 pub mod boards;
 pub mod chats;
 pub mod folders;
-pub mod pages;
+pub mod notes;
 pub mod pomodoro;
 pub mod providers;
 pub mod tasks;

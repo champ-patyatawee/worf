@@ -1,49 +1,63 @@
-import { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { invoke } from "@tauri-apps/api/core";
-import { Page } from "../types";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { NoteSidebar } from "../components/notes/NoteSidebar";
 import { NoteEditor } from "../components/notes/NoteEditor";
+import { QuickSwitcher } from "../components/notes/QuickSwitcher";
+import { noteStore } from "../components/notes/noteStore";
 
-// Persist selected page across tab switches (component unmount/remount)
-let _persistedPageId: string | null = null;
+// Persist active note across tab switches
+let _persistedNoteId: string | null = null;
 
 export function Notes() {
-  const navigate = useNavigate();
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(_persistedPageId);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const { slug } = useParams<{ slug?: string }>();
+  const [, forceUpdate] = useState(0);
+  const initialized = useRef(false);
 
-  const handleSelectPage = useCallback((page: Page) => {
-    _persistedPageId = page.id;
-    setSelectedPageId(page.id);
-    navigate(`/notes/${page.slug}`, { replace: true });
-  }, [navigate]);
-
-  const handleRefresh = useCallback(() => {
-    setRefreshKey((k) => k + 1);
+  // Subscribe to store
+  useEffect(() => {
+    const unsub = noteStore.subscribe(() => forceUpdate((n) => n + 1));
+    return () => unsub();
   }, []);
 
-  // Restore persisted page: fetch slug and navigate
+  // Initial load
   useEffect(() => {
-    if (_persistedPageId) {
-      invoke<any>("get_page", { id: _persistedPageId })
-        .then((page) => {
-          if (page?.slug) {
-            navigate(`/notes/${page.slug}`, { replace: true });
-          }
-        })
-        .catch(() => {});
+    if (!initialized.current) {
+      initialized.current = true;
+      noteStore.loadNotes();
+      noteStore.loadFolders();
     }
   }, []);
 
+  // Open note when slug changes from URL
+  useEffect(() => {
+    if (slug && slug !== _persistedNoteId) {
+      _persistedNoteId = slug;
+      noteStore.openNote(slug);
+    } else if (!slug) {
+      // No slug — if we have a persisted note, open it
+      if (_persistedNoteId) {
+        noteStore.openNote(_persistedNoteId);
+      }
+    }
+  }, [slug]);
+
+  // Persist across tab switches in the same session
+  useEffect(() => {
+    const handleFocus = () => {
+      if (_persistedNoteId && !slug) {
+        // We don't navigate here — just ensure note is loaded
+        // URL params are more reliable for routing
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [slug]);
+
   return (
     <div className="flex-1 flex overflow-hidden">
-      <NoteSidebar
-        selectedPageId={selectedPageId}
-        onSelectPage={handleSelectPage}
-        refreshKey={refreshKey}
-      />
+      <NoteSidebar />
       <NoteEditor />
+      <QuickSwitcher />
     </div>
   );
 }

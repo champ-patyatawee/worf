@@ -1,9 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Dashboard } from "./pages/Dashboard";
-import { Notes } from "./pages/Notes";
 import { Kanban } from "./pages/Kanban";
 import { ChatSessionPage } from "./pages/chat/ChatSessionPage";
+import { Notes } from "./pages/Notes";
 import { SettingsLayout } from "./pages/settings/SettingsLayout";
 import { AIProvider } from "./pages/settings/AIProvider";
 import { NoteSettings } from "./pages/settings/NoteSettings";
@@ -17,12 +17,12 @@ function App() {
       <Routes>
         <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/notes" element={<Notes />} />
-          <Route path="/notes/:slug" element={<Notes />} />
           <Route path="/kanban" element={<Kanban />} />
           <Route path="/kanban/:boardId" element={<Kanban />} />
           <Route path="/ai-chat" element={<ChatSessionPage />} />
           <Route path="/ai-chat/:sessionId" element={<ChatSessionPage />} />
+          <Route path="/notes" element={<Notes />} />
+          <Route path="/notes/:slug" element={<Notes />} />
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="/settings/ai" replace />} />
             <Route path="ai" element={<AIProvider />} />

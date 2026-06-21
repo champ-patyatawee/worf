@@ -1,33 +1,3 @@
-// Kanban
-export interface Board {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BoardWithTasks extends Board {
-  tasks: Task[];
-}
-
-export interface Task {
-  id: string;
-  title: string;
-  description: string | null;
-  priority: string;
-  status: string;
-  position: number;
-  board_id: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export type TaskStatus = "todo" | "in_progress" | "done";
-export type TaskPriority = "low" | "medium" | "high";
-
-// Notes - New types
 export interface Note {
   id: string;
   title: string;
@@ -37,6 +7,7 @@ export interface Note {
   tags: string;
   frontmatter: string;
   pinned: number;
+  position: number;
   word_count: number;
   created_at: string;
   updated_at: string;
@@ -80,12 +51,12 @@ export interface SearchResult {
   tags: string;
 }
 
-export interface NoteLink {
+export interface Folder {
   id: string;
-  source_id: string;
-  target_id: string;
-  link_text: string;
+  name: string;
+  position: number;
   created_at: string;
+  updated_at: string;
 }
 
 export type EditorMode = "edit" | "preview" | "split";

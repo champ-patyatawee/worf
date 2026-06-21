@@ -1,501 +1,847 @@
-import {
-  EditorBubble,
-  EditorCommand,
-  EditorCommandEmpty,
-  EditorCommandItem,
-  EditorCommandList,
-  EditorContent,
-  EditorRoot,
-  handleCommandNavigation,
-  ImageResizer,
-} from "novel";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useEditor } from "novel";
-import { useDebouncedCallback } from "use-debounce";
-import { useParams, useNavigate } from "react-router-dom";
-import { Sparkles, Settings } from "lucide-react";
-import { defaultExtensions } from "./extensions";
-import { slashCommand, suggestionItems } from "./slash-command";
-import { triggerNoteSidebarRefresh } from "./NoteSidebar";
-import { NodeSelector } from "./NodeSelector";
-import { TextButtons } from "./TextButtons";
-import { Separator } from "../ui/separator";
-import { GhostText } from "./GhostText";
-import { GenerateInput } from "./GenerateInput";
-import { AIEditInput } from "./AIEditInput";
-import { useAICompletion } from "./useAICompletion";
-import { invoke } from "@tauri-apps/api/core";
-import type { Page } from "../../types";
-import { aiGenerate, aiEdit } from "../../services/aiService";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import ReactMarkdown from "react-markdown";
+import { useNavigate } from "react-router-dom";
+import { X, Plus, Pin, PinOff, Loader2, Trash2 } from "lucide-react";
+import { noteStore, triggerSidebarRefresh } from "./noteStore";
+import { NoteToolbar } from "./NoteToolbar";
+import { BacklinksPanel } from "./BacklinksPanel";
+import { WikilinkAutocomplete } from "./WikilinkAutocomplete";
+import { generateSlug, preprocessWikilinks, buildNotesLookup, parseWikilinks } from "./noteHelpers";
+import type { Note, NoteWithRelations, EditorMode, LinkInfo } from "./Types";
 
-const extensions = [...defaultExtensions, slashCommand];
-
-function EditorRefSetter({ editorRef }: { editorRef: React.MutableRefObject<any> }) {
-  const { editor } = useEditor();
-  useEffect(() => {
-    if (editor) {
-      editorRef.current = editor;
-    }
-  }, [editor, editorRef]);
-  return null;
-}
+// Module-level persisted editor mode
+let _persistedMode: EditorMode =
+  (typeof localStorage !== "undefined"
+    ? (localStorage.getItem("notes-editor-mode") as EditorMode | null)
+    : null) || "edit";
 
 export function NoteEditor() {
-  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const [currentPage, setCurrentPage] = useState<Page | null>(null);
-  const [saveStatus, setSaveStatus] = useState("Saved");
-  const [pageTitle, setPageTitle] = useState("Untitled");
-  const [openNode, setOpenNode] = useState(false);
-  const [showGenerate, setShowGenerate] = useState(false);
-  const [generateLoading, setGenerateLoading] = useState(false);
-  const [generateError, setGenerateError] = useState("");
-  const [generatePos, setGeneratePos] = useState({ x: 0, y: 0 });
-  const [showAIEdit, setShowAIEdit] = useState(false);
-  const [aiEditLoading, setAIEditLoading] = useState(false);
-  const aiEditRangeRef = useRef<{ from: number; to: number } | null>(null);
-  const editorRef = useRef<any>(null);
-  const { ghostText, loading: ghostLoading } = useAICompletion();
+  const [, forceUpdate] = useState(0);
+  const st = noteStore.state;
 
-  const loadPage = useCallback(async (s: string) => {
-    try {
-      // Try loading by slug first (for navigation), then by id
-      let page: Page | null = null;
-      try {
-        // Check if slug is actually an id
-        page = await invoke<Page>("get_page", { id: s });
-      } catch {
-        // Not found by id, try listing all pages for matching slug
-        const pages = await invoke<Page[]>("list_pages");
-        const rootPages = await invoke<Page[]>("list_pages_in_folder", { folderId: "__all__" }).catch(() => []);
-        const allPages = [...pages, ...rootPages];
-        const folders = await invoke<any[]>("list_folders");
-        for (const folder of folders) {
-          try {
-            const fp = await invoke<Page[]>("list_pages_in_folder", { folderId: folder.id });
-            allPages.push(...fp);
-          } catch {}
+  // ── Editor state ──
+  const [mode, setMode] = useState<EditorMode>(_persistedMode);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [showGraph, setShowGraph] = useState(false);
+  const [showAI, setShowAI] = useState(false);
+  const [showTagInput, setShowTagInput] = useState(false);
+
+  // ── Wikilink autocomplete state ──
+  const [wikilinkOpen, setWikilinkOpen] = useState(false);
+  const [wikilinkSearch, setWikilinkSearch] = useState("");
+  const [wikilinkPosition, setWikilinkPosition] = useState({ top: 0, left: 0 });
+
+  // ── Refs ──
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contentRef = useRef(content);
+  const titleRef = useRef(title);
+  const activeNoteRef = useRef(st.activeNote);
+
+  // Keep refs in sync
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+  useEffect(() => {
+    titleRef.current = title;
+  }, [title]);
+  useEffect(() => {
+    activeNoteRef.current = st.activeNote;
+  }, [st.activeNote]);
+
+  // Subscribe to store
+  useEffect(() => {
+    const unsub = noteStore.subscribe(() => forceUpdate((n) => n + 1));
+    return () => unsub();
+  }, []);
+
+  // Sync state when active note changes
+  useEffect(() => {
+    const active = st.activeNote;
+    if (active && active.note) {
+      setTitle(active.note.title);
+      setContent(active.note.content);
+      setTags(
+        active.note.tags
+          ? active.note.tags.split(",").map((t) => t.trim()).filter(Boolean)
+          : []
+      );
+    }
+  }, [st.activeNote?.note?.id, st.activeNote?.note?.updated_at]);
+
+  // Persist editor mode
+  const handleChangeMode = useCallback((newMode: EditorMode) => {
+    _persistedMode = newMode;
+    localStorage.setItem("notes-editor-mode", newMode);
+    setMode(newMode);
+  }, []);
+
+  // ── Auto-save ──
+  const scheduleSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      const active = activeNoteRef.current;
+      if (!active || !active.note) return;
+      setSaving(true);
+      const updates: Partial<Pick<Note, "title" | "content" | "tags">> = {};
+      const currentTitle = titleRef.current;
+      const currentContent = contentRef.current;
+
+      if (currentTitle !== active.note.title) {
+        updates.title = currentTitle;
+      }
+      if (currentContent !== active.note.content) {
+        updates.content = currentContent;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await noteStore.saveNote(active.note.id, updates);
+        setLastSaved(new Date());
+      }
+      setSaving(false);
+    }, 300);
+  }, []);
+
+  // ── Title handling ──
+  const handleTitleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setTitle(e.target.value);
+      scheduleSave();
+    },
+    [scheduleSave]
+  );
+
+  const handleTitleBlur = useCallback(async () => {
+    const active = st.activeNote;
+    if (!active || !active.note) return;
+    if (title !== active.note.title && title.trim()) {
+      setSaving(true);
+      await noteStore.saveNote(active.note.id, { title: title.trim() });
+      // Navigate to new slug if title changed
+      const newSlug = generateSlug(title.trim());
+      if (newSlug !== active.note.slug) {
+        navigate(`/notes/${newSlug}`, { replace: true });
+      }
+      setLastSaved(new Date());
+      setSaving(false);
+    }
+  }, [title, st.activeNote, navigate]);
+
+  // ── Content handling ──
+  const handleContentChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      const val = e.target.value;
+      setContent(val);
+      scheduleSave();
+
+      // Detect [[ for wikilink autocomplete
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const cursorPos = textarea.selectionStart;
+      const textBefore = val.slice(0, cursorPos);
+      const lastBracket = textBefore.lastIndexOf("[[");
+      if (lastBracket !== -1) {
+        const afterBracket = textBefore.slice(lastBracket + 2);
+        // Don't autocomplete if there's a closing ]]
+        if (!afterBracket.includes("]]")) {
+          const rect = textarea.getBoundingClientRect();
+          // Approximate cursor position
+          const lineHeight = 20;
+          const lines = textBefore.split("\n");
+          const currentLine = lines.length;
+          const lineWidth = lines[lines.length - 1].length * 8;
+          setWikilinkPosition({
+            top: rect.top + currentLine * lineHeight + 24,
+            left: rect.left + Math.min(lineWidth, rect.width - 300) + 16,
+          });
+          setWikilinkSearch(afterBracket);
+          setWikilinkOpen(true);
+        } else {
+          setWikilinkOpen(false);
         }
-        page = allPages.find(p => p.slug === s) || null;
+      } else {
+        setWikilinkOpen(false);
       }
 
-      if (!page) {
-        console.error("Page not found:", s);
-        return;
+      // Debounced slug update on title-like first line
+      if (!title.trim()) {
+        const firstLine = val.split("\n")[0].replace(/^#+\s*/, "").trim();
+        if (firstLine && firstLine.length < 60) {
+          if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
+          titleTimerRef.current = setTimeout(() => {
+            setTitle(firstLine);
+          }, 1500);
+        }
       }
+    },
+    [scheduleSave, title]
+  );
 
-      // Validate content
-      if (!page.content || page.content === "{}") {
-        page.content = JSON.stringify({
-          type: "doc",
-          content: [{ type: "paragraph", content: [] }],
+  // ── Tag handling ──
+  const handleAddTag = useCallback(() => {
+    const tag = tagInput.trim().replace(/^#/, "");
+    if (tag && !tags.includes(tag)) {
+      const newTags = [...tags, tag];
+      setTags(newTags);
+      setTagInput("");
+      setShowTagInput(false);
+      // Save tags
+      const active = st.activeNote;
+      if (active && active.note) {
+        setSaving(true);
+        noteStore.saveNote(active.note.id, { tags: newTags.join(",") }).then(() => {
+          setSaving(false);
+          setLastSaved(new Date());
         });
       }
-      setCurrentPage(page);
-      setPageTitle(page.title);
-    } catch (err) {
-      console.error("Failed to load page:", err);
     }
-  }, []);
+  }, [tagInput, tags, st.activeNote]);
 
-  useEffect(() => {
-    if (slug) {
-      loadPage(slug);
-    } else {
-      setCurrentPage(null);
-      setPageTitle("Untitled");
-    }
-  }, [slug, loadPage]);
-
-  // Update editor content when page changes (without re-mounting the editor)
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor || !currentPage) return;
-    try {
-      const parsed = JSON.parse(currentPage.content);
-      if (parsed && typeof parsed === 'object') {
-        editor.commands.setContent(parsed);
+  const handleRemoveTag = useCallback(
+    (tag: string) => {
+      const newTags = tags.filter((t) => t !== tag);
+      setTags(newTags);
+      const active = st.activeNote;
+      if (active && active.note) {
+        setSaving(true);
+        noteStore.saveNote(active.note.id, { tags: newTags.join(",") }).then(() => {
+          setSaving(false);
+          setLastSaved(new Date());
+        });
       }
-    } catch {
-      // content is plain text or invalid JSON, skip
-    }
-  }, [currentPage?.id]);
+    },
+    [tags, st.activeNote]
+  );
 
-  // Listen for AI generate trigger from slash command
+  const handleTagInputKey = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === ",") {
+        e.preventDefault();
+        handleAddTag();
+      } else if (e.key === "Escape") {
+        setShowTagInput(false);
+        setTagInput("");
+      }
+    },
+    [handleAddTag]
+  );
+
+  // ── Wikilink autocomplete handlers ──
+  const handleWikilinkSelect = useCallback(
+    (noteTitle: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      const cursorPos = textarea.selectionStart;
+      const val = contentRef.current;
+      const textBefore = val.slice(0, cursorPos);
+      const lastBracket = textBefore.lastIndexOf("[[");
+      if (lastBracket === -1) {
+        setWikilinkOpen(false);
+        return;
+      }
+      const beforeBracket = val.slice(0, lastBracket);
+      const afterCursor = val.slice(cursorPos);
+      const newContent = `${beforeBracket}[[${noteTitle}]]${afterCursor}`;
+      setContent(newContent);
+      contentRef.current = newContent;
+      setWikilinkOpen(false);
+      scheduleSave();
+
+      // Focus back on textarea
+      setTimeout(() => {
+        textarea.focus();
+        const newPos = lastBracket + noteTitle.length + 4;
+        textarea.setSelectionRange(newPos, newPos);
+      }, 0);
+    },
+    [scheduleSave]
+  );
+
+  // ── Keyboard shortcuts ──
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.editor) {
-        editorRef.current = detail.editor;
-        const { from } = detail.editor.state.selection;
-        const coords = detail.editor.view.coordsAtPos(from);
-        setGeneratePos({ x: coords.left, y: coords.top });
-        setShowGenerate(true);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+S = save
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        // Force save immediately
+        const active = activeNoteRef.current;
+        if (!active || !active.note) return;
+        setSaving(true);
+        noteStore
+          .saveNote(active.note.id, {
+            title: titleRef.current,
+            content: contentRef.current,
+          })
+          .then(() => {
+            setSaving(false);
+            setLastSaved(new Date());
+          });
+      }
+      // Tab = 2 spaces in textarea
+      if (e.key === "Tab" && document.activeElement === textareaRef.current) {
+        e.preventDefault();
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const val = contentRef.current;
+        const newVal = val.slice(0, start) + "  " + val.slice(end);
+        setContent(newVal);
+        contentRef.current = newVal;
+        setTimeout(() => {
+          textarea.setSelectionRange(start + 2, start + 2);
+        }, 0);
       }
     };
-    window.addEventListener("ai-generate-trigger", handler);
-    return () => window.removeEventListener("ai-generate-trigger", handler);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const handleGenerate = async (prompt: string) => {
-    setGenerateLoading(true);
-    setGenerateError("");
-    try {
-      const editor = editorRef.current;
-      if (!editor) return;
-
-      const context = editor.getText();
-      const content = await aiGenerate(prompt, context);
-
-      if (content) {
-        editor.chain().focus().insertContent(content).run();
-      }
-      setShowGenerate(false);
-    } catch (err: any) {
-      console.error("AI generation failed:", err);
-      setGenerateError(err.message || "AI generation failed");
+  // ── Pin toggle ──
+  const handleTogglePin = useCallback(async () => {
+    const active = st.activeNote;
+    if (active && active.note) {
+      await noteStore.togglePinNote(active.note.id);
     }
-    setGenerateLoading(false);
+  }, [st.activeNote]);
+
+  // ── Delete note ──
+  const handleDelete = useCallback(async () => {
+    const active = st.activeNote;
+    if (!active || !active.note) return;
+    if (confirm(`Delete "${active.note.title || "Untitled"}"?`)) {
+      await noteStore.deleteNote(active.note.id);
+      navigate("/notes");
+    }
+  }, [st.activeNote, navigate]);
+
+  // ── Build notes lookup for wikilink preprocessing ──
+  const notesLookup = useMemo(
+    () => buildNotesLookup(st.notes),
+    [st.notes]
+  );
+
+  // ── Preprocess content for preview ──
+  const preprocessedContent = useMemo(
+    () => preprocessWikilinks(content, notesLookup),
+    [content, notesLookup]
+  );
+
+  // ── Render ──
+
+  if (!st.activeNote || !st.activeNote.note) {
+    return (
+      <div
+        className="flex-1 flex items-center justify-center"
+        style={{ backgroundColor: "var(--color-bg-secondary)" }}
+      >
+        <div className="text-center">
+          <div
+            className="w-16 h-16 mx-auto mb-4 rounded-[var(--radius-lg)] border-2 flex items-center justify-center"
+            style={{
+              borderColor: "var(--color-border-primary)",
+              backgroundColor: "var(--color-bg-tertiary)",
+            }}
+          >
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              style={{ color: "var(--color-text-tertiary)" }}
+            >
+              <path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+          </div>
+          <h3
+            className="text-base font-semibold mb-1"
+            style={{ color: "var(--color-text-primary)" }}
+          >
+            Select a note
+          </h3>
+          <p
+            className="text-sm"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            Choose a note from the sidebar or create a new one
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const activeNote = st.activeNote.note;
+  const wordCount = activeNote.word_count || content.split(/\s+/).filter(Boolean).length;
+  const createdDate = activeNote.created_at
+    ? new Date(activeNote.created_at).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
+  return (
+    <div
+      className="flex-1 flex flex-col overflow-hidden"
+      style={{ backgroundColor: "var(--color-bg-secondary)" }}
+    >
+      {/* ── Title ── */}
+      <div className="px-6 pt-5 pb-2">
+        <input
+          value={title}
+          onChange={handleTitleChange}
+          onBlur={handleTitleBlur}
+          placeholder="Untitled"
+          className="w-full bg-transparent outline-none text-2xl font-bold"
+          style={{ color: "var(--color-text-primary)" }}
+        />
+
+        {/* Tags row */}
+        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-[var(--radius-sm)] border"
+              style={{
+                backgroundColor: "var(--color-accent-subtle)",
+                color: "var(--color-accent-primary)",
+                borderColor: "var(--color-accent-primary)",
+              }}
+            >
+              #{tag}
+              <button
+                onClick={() => handleRemoveTag(tag)}
+                className="hover:opacity-70 transition-opacity"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          {showTagInput ? (
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+              onKeyDown={handleTagInputKey}
+              onBlur={() => {
+                if (tagInput.trim()) handleAddTag();
+                else setShowTagInput(false);
+              }}
+              placeholder="Add tag..."
+              className="w-24 px-2 py-0.5 text-xs rounded-[var(--radius-sm)] border outline-none"
+              style={{
+                backgroundColor: "var(--color-bg-secondary)",
+                borderColor: "var(--color-border-primary)",
+                color: "var(--color-text-primary)",
+              }}
+              autoFocus
+            />
+          ) : (
+            <button
+              onClick={() => setShowTagInput(true)}
+              className="flex items-center gap-0.5 px-2 py-0.5 text-xs rounded-[var(--radius-sm)] border transition-colors hover:bg-[var(--color-bg-hover)]"
+              style={{
+                borderColor: "var(--color-border-secondary)",
+                color: "var(--color-text-tertiary)",
+              }}
+            >
+              <Plus className="w-3 h-3" /> Add tag
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Toolbar ── */}
+      <NoteToolbar
+        mode={mode}
+        onChangeMode={handleChangeMode}
+        onAIClick={() => setShowAI(!showAI)}
+        onGraphClick={() => setShowGraph(!showGraph)}
+        saving={saving}
+        lastSaved={lastSaved}
+      />
+
+      {/* ── Editor / Preview area ── */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Edit pane */}
+        {(mode === "edit" || mode === "split") && (
+          <div
+            className={`relative ${
+              mode === "split" ? "w-1/2" : "flex-1"
+            } overflow-hidden`}
+          >
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={handleContentChange}
+              className="w-full h-full resize-none outline-none p-6 leading-relaxed scrollbar-thin"
+              style={{
+                backgroundColor: "var(--color-bg-secondary)",
+                color: "var(--color-text-primary)",
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                fontSize: "14px",
+                lineHeight: "1.7",
+                tabSize: 2,
+              }}
+              placeholder="Start writing in Markdown...
+
+Use [[Note Title]] to link to other notes.
+Use #tags to categorize your notes."
+              spellCheck={false}
+            />
+
+            {/* Wikilink autocomplete */}
+            <WikilinkAutocomplete
+              open={wikilinkOpen}
+              search={wikilinkSearch}
+              position={wikilinkPosition}
+              onSelect={handleWikilinkSelect}
+              onClose={() => setWikilinkOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Divider for split mode */}
+        {mode === "split" && (
+          <div
+            className="w-px flex-shrink-0"
+            style={{ backgroundColor: "var(--color-border-primary)" }}
+          />
+        )}
+
+        {/* Preview pane */}
+        {(mode === "preview" || mode === "split") && (
+          <div
+            className={`${
+              mode === "split" ? "w-1/2" : "flex-1"
+            } overflow-y-auto p-6 scrollbar-thin`}
+            style={{ backgroundColor: "var(--color-bg-secondary)" }}
+          >
+            {content.trim() ? (
+              <div
+                className="prose prose-sm max-w-none prose-headings:font-semibold prose-a:text-[var(--color-accent-primary)] prose-a:no-underline hover:prose-a:underline prose-code:text-sm prose-code:bg-[var(--color-bg-tertiary)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[var(--radius-sm)] prose-pre:bg-[var(--color-bg-tertiary)] prose-pre:border-2 prose-pre:border-[var(--color-border-primary)]"
+                style={{ color: "var(--color-text-primary)" }}
+              >
+                <ReactMarkdown
+                  components={{
+                    a: ({ href, children, ...props }) => {
+                      if (href?.startsWith("/notes/")) {
+                        return (
+                          <a
+                            href={href}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigate(href);
+                            }}
+                            style={{ color: "var(--color-accent-primary)", cursor: "pointer" }}
+                            {...props}
+                          >
+                            {children}
+                          </a>
+                        );
+                      }
+                      return (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          {...props}
+                        >
+                          {children}
+                        </a>
+                      );
+                    },
+                    // Style code blocks
+                    code: ({ className, children, ...props }: any) => {
+                      const isInline = !className;
+                      if (isInline) {
+                        return (
+                          <code
+                            className="px-1 py-0.5 rounded text-sm"
+                            style={{
+                              backgroundColor: "var(--color-bg-tertiary)",
+                              color: "var(--color-accent-primary)",
+                            }}
+                            {...props}
+                          >
+                            {children}
+                          </code>
+                        );
+                      }
+                      return (
+                        <pre
+                          className="overflow-x-auto p-4 rounded-lg border"
+                          style={{
+                            backgroundColor: "var(--color-bg-tertiary)",
+                            borderColor: "var(--color-border-primary)",
+                          }}
+                        >
+                          <code {...props}>{children}</code>
+                        </pre>
+                      );
+                    },
+                  }}
+                >
+                  {preprocessedContent}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <div
+                className="flex items-center justify-center h-full text-sm"
+style={{ color: "var(--color-text-secondary)" }}
+              >
+                Nothing to preview — start writing in Edit mode
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Bottom bar: Backlinks + Status ── */}
+      <div
+        className="border-t-2 px-4 py-2 space-y-2"
+        style={{
+          backgroundColor: "var(--color-bg-primary)",
+          borderColor: "var(--color-border-primary)",
+        }}
+      >
+        {/* Backlinks */}
+        {st.activeNote && st.activeNote.backlinks && st.activeNote.backlinks.length > 0 && (
+          <BacklinksPanel backlinks={st.activeNote.backlinks} />
+        )}
+
+        {/* Status bar */}
+        <div
+          className="flex items-center justify-between text-[11px] font-mono"
+          style={{ color: "var(--color-text-tertiary)" }}
+        >
+          <div className="flex items-center gap-3">
+            <span>{wordCount} words</span>
+            {saving && (
+              <span className="flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" /> Saving...
+              </span>
+            )}
+            {!saving && lastSaved && <span>Saved</span>}
+          </div>
+          <div className="flex items-center gap-3">
+            {createdDate && <span>Created {createdDate}</span>}
+            <button
+              onClick={handleDelete}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-error)]"
+              title="Delete note"
+              style={{ color: "var(--color-text-tertiary)" }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleTogglePin}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors hover:bg-[var(--color-bg-hover)]"
+              title={activeNote.pinned === 1 ? "Unpin" : "Pin"}
+            >
+              {activeNote.pinned === 1 ? (
+                <PinOff className="w-3 h-3" />
+              ) : (
+                <Pin className="w-3 h-3" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Graph overlay ── */}
+      {showGraph && (
+        <GraphViewWrapper open={showGraph} onClose={() => setShowGraph(false)} />
+      )}
+
+      {/* ── AI placeholder ── */}
+      {showAI && (
+        <AIPopup
+          content={content}
+          onClose={() => setShowAI(false)}
+          onInsert={(newContent) => {
+            setContent(newContent);
+            contentRef.current = newContent;
+            scheduleSave();
+            setShowAI(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Graph View Wrapper (lazy import compat) ──
+
+import { GraphView } from "./GraphView";
+
+const GraphViewWrapper = GraphView;
+
+// ── AI Popup ──
+
+function AIPopup({
+  content,
+  onClose,
+  onInsert,
+}: {
+  content: string;
+  onClose: () => void;
+  onInsert: (content: string) => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState("");
+
+  const handleGenerate = async () => {
+    if (!prompt.trim() || loading) return;
+    setLoading(true);
+    // In a real implementation, this would call the AI provider
+    // For now, we'll just set a placeholder
+    setTimeout(() => {
+      setResult(
+        `## AI Generated Content\n\nThis is a placeholder for AI-generated content based on your prompt: "${prompt}"\n\nThe AI integration will be connected when providers are configured.\n\n---\n*Generated for note context*`
+      );
+      setLoading(false);
+    }, 500);
   };
 
-  const handleAIEdit = async (instruction: string) => {
-    const editor = editorRef.current;
-    if (!editor) return;
-
-    const range = aiEditRangeRef.current;
-    if (!range) return;
-
-    const { from, to } = range;
-    const selectedText = editor.state.doc.textBetween(from, to, "\n");
-    if (!selectedText.trim()) return;
-
-    setAIEditLoading(true);
-    try {
-      const result = await aiEdit(selectedText, instruction);
-      if (result) {
-        let cleaned = result.trim();
-
-        const node = editor.state.doc.nodeAt(from);
-        const isCodeBlock =
-          node?.type?.name === "codeBlock" ||
-          editor.state.selection.$from.parent.type.name === "codeBlock";
-
-        if (isCodeBlock) {
-          cleaned = cleaned.replace(/<[^>]+>/g, "");
-        } else if (cleaned.startsWith("<p>") && cleaned.endsWith("</p>")) {
-          cleaned = cleaned.slice(3, -4).trim();
-        }
-
-        editor.chain().focus().insertContentAt({ from, to }, cleaned).run();
-      }
-      setShowAIEdit(false);
-      aiEditRangeRef.current = null;
-    } catch (err: any) {
-      console.error("AI edit failed:", err);
+  const handleInsert = () => {
+    if (result) {
+      onInsert(content + "\n\n" + result);
     }
-    setAIEditLoading(false);
   };
 
-  // Novel GlobalDragHandle fix
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      const handle = document.querySelector(".drag-handle");
-      if (handle && handle.getAttribute("contenteditable") !== "false") {
-        handle.setAttribute("contenteditable", "false");
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
-
-  const debouncedSave = useDebouncedCallback(async (id: string, content: any, title: string, pageSlug: string) => {
-    try {
-      const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
-      const updated = await invoke<any>("update_page", { id, title, content: contentStr });
-      setSaveStatus("Saved");
-      triggerNoteSidebarRefresh();
-      if (updated.slug && updated.slug !== pageSlug) {
-        navigate(`/notes/${updated.slug}`, { replace: true });
-      }
-    } catch (err) {
-      console.error("Failed to save:", err);
-      setSaveStatus("Error");
-    }
-  }, 300);
-
-  const handleContentChange = (editor: any) => {
-    if (!currentPage) return;
-    setSaveStatus("Unsaved");
-    debouncedSave(currentPage.id, editor.getJSON(), pageTitle, slug || currentPage.slug);
-  };
-
-  const debouncedTitleSave = useDebouncedCallback(async (id: string, title: string, pageSlug: string) => {
-    try {
-      const updated = await invoke<any>("update_page", { id, title, content: null });
-      setSaveStatus("Saved");
-      triggerNoteSidebarRefresh();
-      // Only navigate if we're still on the same page (slug didn't change)
-      if (updated.slug && updated.slug !== pageSlug) {
-        navigate(`/notes/${updated.slug}`, { replace: true });
-      }
-    } catch (err) {
-      console.error("Failed to save title:", err);
-      setSaveStatus("Error");
-    }
-  }, 300);
-
-  const handleTitleChange = (newTitle: string) => {
-    setPageTitle(newTitle);
-    if (!currentPage) return;
-    setSaveStatus("Unsaved");
-    debouncedTitleSave(currentPage.id, newTitle, slug || currentPage.slug);
-  };
-
-  // Parse initial content
-  const getInitialContent = (): any => {
-    if (!currentPage?.content) return undefined;
-    try {
-      return JSON.parse(currentPage.content);
-    } catch {
-      return {
-        type: "doc",
-        content: [{ type: "paragraph", content: [{ type: "text", text: currentPage.content }] }],
-      };
+  const handleReplace = () => {
+    if (result) {
+      onInsert(result);
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0" style={{ backgroundColor: "var(--color-bg-primary)" }}>
-      {/* Header */}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ backgroundColor: "var(--color-bg-overlay)" }}
+      onClick={onClose}
+    >
       <div
-        className="flex items-center justify-between px-6 py-3 border-b-2 flex-shrink-0"
-        style={{ borderColor: "var(--color-border-primary)", backgroundColor: "var(--color-bg-primary)" }}
+        className="w-full max-w-lg rounded-[var(--radius-lg)] border-2 overflow-hidden animate-scaleIn"
+        style={{
+          backgroundColor: "var(--color-bg-primary)",
+          borderColor: "var(--color-border-primary)",
+          boxShadow: "var(--shadow-modal)",
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-4 flex-1 min-w-0">
-          {slug && currentPage ? (
-            <input
-              type="text"
-              value={pageTitle}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              onBlur={async () => {
-                if (!currentPage) return;
-                const blurSlug = slug || currentPage.slug;
-                try {
-                  const updated = await invoke<any>("update_page", { id: currentPage.id, title: pageTitle, content: null });
-                  setSaveStatus("Saved");
-                  triggerNoteSidebarRefresh();
-                  if (updated.slug && updated.slug !== blurSlug) {
-                    navigate(`/notes/${updated.slug}`, { replace: true });
-                  }
-                } catch { setSaveStatus("Error"); }
-              }}
-              className="text-xl font-extrabold bg-transparent border-2 rounded-[var(--radius-md)] px-3 py-1.5 w-full max-w-xl transition-colors"
-              style={{
-                color: "var(--color-text-primary)",
-                borderColor: "transparent",
-                backgroundColor: "var(--color-bg-secondary)",
-              }}
-              placeholder="Untitled"
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = "var(--color-accent-primary)";
-              }}
-              onMouseOut={(e) => {
-                if (e.currentTarget !== document.activeElement) {
-                  e.currentTarget.style.borderColor = "transparent";
-                }
-              }}
-            />
-          ) : (
-            <span className="text-xl font-extrabold" style={{ color: "var(--color-text-tertiary)" }}>Select a page</span>
-          )}
-        </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div
+          className="flex items-center justify-between px-4 py-3 border-b-2"
+          style={{ borderColor: "var(--color-border-primary)" }}
+        >
           <span
-            className="rounded-full px-3 py-1 text-xs font-bold border-2 uppercase tracking-wide"
-            style={{
-              backgroundColor:
-                saveStatus === "Saved"
-                  ? "rgba(74, 222, 128, 0.15)"
-                  : saveStatus === "Error"
-                  ? "rgba(251, 113, 133, 0.15)"
-                  : "rgba(250, 204, 21, 0.15)",
-              borderColor: "var(--color-border-primary)",
-              color:
-                saveStatus === "Saved"
-                  ? "var(--color-success)"
-                  : saveStatus === "Error"
-                  ? "var(--color-error)"
-                  : "var(--color-warning)",
-            }}
+            className="text-sm font-semibold"
+            style={{ color: "var(--color-text-primary)" }}
           >
-            {saveStatus}
+            AI Assistant
           </span>
           <button
-            onClick={() => navigate("/settings/ai")}
-            className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] border-2 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none"
-            style={{
-              backgroundColor: "var(--color-bg-secondary)",
-              borderColor: "var(--color-border-primary)",
-            }}
-            title="Settings"
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-sm)] border-2 hover:bg-[var(--color-bg-hover)] transition-colors"
+            style={{ borderColor: "var(--color-border-primary)" }}
           >
-            <Settings className="h-4 w-4" style={{ color: "var(--color-text-secondary)" }} />
+            <X className="w-4 h-4" />
           </button>
         </div>
-      </div>
 
-      {/* Editor Area */}
-      <div className="flex-1 overflow-auto p-6 min-h-0 relative">
-        {ghostLoading && (
-          <div className="absolute top-2 right-4 z-30 text-xs font-medium animate-pulse" style={{ color: "var(--color-accent-primary)" }}>
-            ...
-          </div>
-        )}
-        {currentPage ? (
-          <div
-            className="w-full max-w-4xl border-2 rounded-[var(--radius-lg)] overflow-hidden"
+        <div className="p-4 space-y-3">
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="Tell AI what to write or how to edit..."
+            className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-sm outline-none resize-none h-20"
             style={{
               backgroundColor: "var(--color-bg-secondary)",
               borderColor: "var(--color-border-primary)",
-              boxShadow: "4px 4px 0px #0D0D0D",
+              color: "var(--color-text-primary)",
+            }}
+          />
+          <button
+            onClick={handleGenerate}
+            disabled={loading || !prompt.trim()}
+            className="w-full px-4 py-2 text-sm font-semibold rounded-[var(--radius-md)] border-2 btn-brutal transition-all disabled:opacity-50"
+            style={{
+              backgroundColor: loading
+                ? "var(--color-bg-tertiary)"
+                : "var(--color-accent-primary)",
+              color: loading
+                ? "var(--color-text-tertiary)"
+                : "#FFFFFF",
+              borderColor: "var(--color-border-primary)",
+              boxShadow: "var(--shadow-sm)",
             }}
           >
-            <EditorRoot>
-              <EditorContent
-                initialContent={getInitialContent()}
-                extensions={extensions}
-                className="relative min-h-full w-full"
-                editorProps={{
-                  handleDOMEvents: {
-                    keydown: (_view: any, event: KeyboardEvent) => handleCommandNavigation(event),
-                  },
-                  attributes: {
-                    class: `prose prose-lg prose-headings:font-title font-default focus:outline-none max-w-full px-12 py-8`,
-                  },
-                }}
-                onUpdate={({ editor }: { editor: any }) => {
-                  editorRef.current = editor;
-                  handleContentChange(editor);
-                }}
-                slotAfter={<ImageResizer />}
-              >
-                <EditorRefSetter editorRef={editorRef} />
-                <EditorBubble
-                  tippyOptions={{
-                    placement: "top",
-                    onShow: () => setShowAIEdit(false),
-                    onHidden: () => {
-                      setOpenNode(false);
-                    },
-                  }}
-                  className="flex w-fit max-w-[90vw] overflow-hidden rounded-[var(--radius-lg)] border-2 border-[var(--color-border-primary)] shadow-[var(--shadow-md)] bg-[var(--color-bg-secondary)]"
-                >
-                  {showAIEdit ? (
-                    <AIEditInput
-                      onEdit={handleAIEdit}
-                      onCancel={() => setShowAIEdit(false)}
-                      loading={aiEditLoading}
-                    />
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => {
-                          const editor = editorRef.current;
-                          if (editor) {
-                            const { from, to } = editor.state.selection;
-                            aiEditRangeRef.current = { from, to };
-                          }
-                          setShowAIEdit(true);
-                        }}
-                        className="px-2 py-1 text-sm font-medium flex items-center gap-1"
-                        style={{ color: "var(--color-accent-primary)" }}
-                        title="AI Edit"
-                      >
-                        <Sparkles className="h-3.5 w-3.5" />
-                        AI
-                      </button>
-                      <Separator orientation="vertical" className="h-9" style={{ backgroundColor: "var(--color-border-primary)" }} />
-                      <NodeSelector open={openNode} onOpenChange={setOpenNode} />
-                      <Separator orientation="vertical" className="h-9" style={{ backgroundColor: "var(--color-border-primary)" }} />
-                      <TextButtons />
-                    </>
-                  )}
-                </EditorBubble>
-                <EditorCommand
-                  className="z-50 h-auto max-h-[330px] w-full px-1 py-2 rounded-[var(--radius-md)] border-2 shadow-[var(--shadow-md)] overflow-y-auto"
-                  style={{ backgroundColor: "var(--color-bg-secondary)", borderColor: "var(--color-border-primary)" }}
-                >
-                  <EditorCommandEmpty className="px-2" style={{ color: "var(--color-text-tertiary)" }}>No results</EditorCommandEmpty>
-                  <EditorCommandList>
-                    {suggestionItems.map((item) => (
-                      <EditorCommandItem
-                        value={item.title}
-                        onCommand={(val: any) => item.command?.(val)}
-                        className="flex w-full items-center space-x-2 rounded-[var(--radius-md)] px-2 py-1 text-left text-sm hover:bg-[var(--color-bg-hover)] transition-colors"
-                        style={{ color: "var(--color-text-primary)" }}
-                        key={item.title}
-                      >
-                        <div
-                          className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] border-2"
-                          style={{ borderColor: "var(--color-border-primary)", backgroundColor: "var(--color-bg-tertiary)" }}
-                        >
-                          {item.icon}
-                        </div>
-                        <div>
-                          <p className="font-semibold" style={{ color: "var(--color-text-primary)" }}>{item.title}</p>
-                          <p className="text-xs" style={{ color: "var(--color-text-secondary)" }}>{item.description}</p>
-                        </div>
-                      </EditorCommandItem>
-                    ))}
-                  </EditorCommandList>
-                </EditorCommand>
-              </EditorContent>
-            </EditorRoot>
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full">
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin" /> Generating...
+              </span>
+            ) : (
+              "Generate"
+            )}
+          </button>
+
+          {result && (
             <div
-              className="text-center border-2 rounded-[var(--radius-lg)] p-10 max-w-md"
+              className="p-3 rounded-[var(--radius-md)] border-2 text-sm max-h-48 overflow-y-auto"
               style={{
-                backgroundColor: "var(--color-bg-secondary)",
+                backgroundColor: "var(--color-bg-tertiary)",
                 borderColor: "var(--color-border-primary)",
-                boxShadow: "4px 4px 0px #0D0D0D",
+                color: "var(--color-text-primary)",
               }}
             >
-              <div
-                className="w-12 h-12 mx-auto mb-4 rounded-full border-2 flex items-center justify-center"
-                style={{ borderColor: "var(--color-border-primary)" }}
-              >
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: "var(--color-text-tertiary)" }}>
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
+              <div className="prose prose-sm prose-headings:text-sm max-w-none">
+                {result}
               </div>
-              <p className="text-lg font-bold mb-1" style={{ color: "var(--color-text-primary)" }}>No page selected</p>
-              <p className="text-sm font-medium" style={{ color: "var(--color-text-secondary)" }}>Select a page from the sidebar or create a new one</p>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* AI Generate Input */}
-        {showGenerate && (
-          <div className="fixed z-50" style={{ left: generatePos.x, top: generatePos.y }}>
-            <GenerateInput
-              onGenerate={handleGenerate}
-              onCancel={() => { setShowGenerate(false); setGenerateError(""); }}
-              loading={generateLoading}
-              error={generateError}
-            />
-          </div>
-        )}
-
-        {/* Ghost Text */}
-        {editorRef.current && (
-          <GhostText text={ghostText} editor={editorRef.current} />
-        )}
+          {result && (
+            <div className="flex gap-2">
+              <button
+                onClick={handleInsert}
+                className="flex-1 px-3 py-2 text-sm font-semibold rounded-[var(--radius-md)] border-2 btn-brutal transition-all"
+                style={{
+                  backgroundColor: "var(--color-bg-secondary)",
+                  borderColor: "var(--color-border-primary)",
+                  color: "var(--color-text-primary)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                Insert at cursor
+              </button>
+              <button
+                onClick={handleReplace}
+                className="flex-1 px-3 py-2 text-sm font-semibold rounded-[var(--radius-md)] border-2 btn-brutal transition-all"
+                style={{
+                  backgroundColor: "var(--color-accent-primary)",
+                  color: "#FFFFFF",
+                  borderColor: "var(--color-border-primary)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                Replace all
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

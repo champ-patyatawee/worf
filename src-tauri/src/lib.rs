@@ -37,18 +37,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            // Folders
-            commands::folders::create_folder,
-            commands::folders::list_folders,
-            commands::folders::rename_folder,
-            commands::folders::delete_folder,
-            // Pages
-            commands::pages::create_page,
-            commands::pages::get_page,
-            commands::pages::update_page,
-            commands::pages::delete_page,
-            commands::pages::list_pages,
-            commands::pages::list_pages_in_folder,
             // Boards
             commands::boards::create_board,
             commands::boards::list_boards,
@@ -86,6 +74,26 @@ pub fn run() {
             commands::pomodoro::get_pomodoro_state,
             commands::pomodoro::start_pomodoro,
             commands::pomodoro::stop_pomodoro,
+            // Notes
+            commands::notes::create_note,
+            commands::notes::get_note,
+            commands::notes::update_note,
+            commands::notes::delete_note,
+            commands::notes::list_notes,
+            commands::notes::list_root_notes,
+            commands::notes::list_notes_in_folder,
+            commands::notes::move_note,
+            commands::notes::get_graph_data,
+            commands::notes::get_backlinks,
+            commands::notes::search_notes,
+            commands::notes::reorder_notes,
+            commands::notes::toggle_pin_note,
+            // Folders
+            commands::folders::list_folders,
+            commands::folders::create_folder,
+            commands::folders::rename_folder,
+            commands::folders::delete_folder,
+            commands::folders::reorder_folders,
             // Terminal
             commands::terminal::create_terminal_tab,
             commands::terminal::terminal_write,

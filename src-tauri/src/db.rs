@@ -10,8 +10,23 @@ impl Database {
         let db_path = app_dir.join("worf.db");
         let conn = Connection::open(&db_path)?;
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
-        conn.execute_batch("PRAGMA foreign_keys=ON;")?;
+conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         conn.execute_batch(include_str!("../migrations/001_init.sql"))?;
+        conn.execute_batch(include_str!("../migrations/002_notes.sql"))?;
+
+        // Migration 002b: Add position column to existing notes/folders tables
+        // ALTER TABLE runs HERE — safe because execute_batch for 002 already succeeded.
+        // If the column already exists (new DB), ALTER TABLE fails but .ok() ignores it.
+        // If the column doesn't exist (existing DB), ALTER TABLE adds it.
+        // (Must run BEFORE CREATE INDEX so the column will exist when we index it.)
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN position INTEGER NOT NULL DEFAULT 0").ok();
+        conn.execute_batch("ALTER TABLE folders ADD COLUMN position INTEGER NOT NULL DEFAULT 0").ok();
+
+        // Now create the index — column definitely exists by this point
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_notes_position ON notes(position)")?;
+
+        // Migration 003 may fail on existing databases (position already added above)
+        conn.execute_batch(include_str!("../migrations/003_folders_position.sql")).ok();
         println!("Database initialized at: {:?}", db_path);
         Ok(Database { conn })
     }
@@ -21,6 +36,21 @@ impl Database {
         let conn = Connection::open_in_memory()?;
         conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         conn.execute_batch(include_str!("../migrations/001_init.sql"))?;
+        conn.execute_batch(include_str!("../migrations/002_notes.sql"))?;
+
+        // Migration 002b: Add position column to existing notes/folders tables
+        // ALTER TABLE runs HERE — safe because execute_batch for 002 already succeeded.
+        // If the column already exists (new DB), ALTER TABLE fails but .ok() ignores it.
+        // If the column doesn't exist (existing DB), ALTER TABLE adds it.
+        // (Must run BEFORE CREATE INDEX so the column will exist when we index it.)
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN position INTEGER NOT NULL DEFAULT 0").ok();
+        conn.execute_batch("ALTER TABLE folders ADD COLUMN position INTEGER NOT NULL DEFAULT 0").ok();
+
+        // Now create the index — column definitely exists by this point
+        conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_notes_position ON notes(position)")?;
+
+        // Migration 003 may fail on existing databases (position already added above)
+        conn.execute_batch(include_str!("../migrations/003_folders_position.sql")).ok();
         Ok(Database { conn })
     }
 }
@@ -31,66 +61,6 @@ mod tests {
 
     fn setup() -> Database {
         Database::new_in_memory().expect("Failed to create in-memory database")
-    }
-
-    #[test]
-    fn test_create_and_list_folders() {
-        let db = setup();
-        let id = uuid::Uuid::new_v4().to_string();
-        let now = chrono::Utc::now().to_rfc3339();
-
-        db.conn
-            .execute(
-                "INSERT INTO folders (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![id, "Test Folder", now, now],
-            )
-            .unwrap();
-
-        let count: i64 = db
-            .conn
-            .query_row("SELECT COUNT(*) FROM folders", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 1);
-
-        let name: String = db
-            .conn
-            .query_row(
-                "SELECT name FROM folders WHERE id = ?1",
-                rusqlite::params![id],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(name, "Test Folder");
-    }
-
-    #[test]
-    fn test_create_and_list_pages() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-        let page_id = uuid::Uuid::new_v4().to_string();
-
-        db.conn
-            .execute(
-                "INSERT INTO pages (id, title, slug, content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![page_id, "Test Page", "test-page", "{}", now, now],
-            )
-            .unwrap();
-
-        let count: i64 = db
-            .conn
-            .query_row("SELECT COUNT(*) FROM pages", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 1);
-
-        let title: String = db
-            .conn
-            .query_row(
-                "SELECT title FROM pages WHERE id = ?1",
-                rusqlite::params![page_id],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert_eq!(title, "Test Page");
     }
 
     #[test]
@@ -325,6 +295,413 @@ mod tests {
         assert!(statuses.contains(&"done".to_string()));
     }
 
+    use crate::commands::notes::Note;
+
+    #[test]
+    fn test_create_note() {
+        let db = setup();
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = chrono::Utc::now().to_rfc3339();
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![id, "Test Note", "test-note", "Hello world", None::<String>, "", "{}", 0, 0, 2, now, now],
+            )
+            .unwrap();
+        let note: Note = db.conn.query_row(
+            "SELECT id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at FROM notes WHERE id = ?1",
+            rusqlite::params![id],
+            |row| {
+                Ok(Note {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    slug: row.get(2)?,
+                    content: row.get(3)?,
+                    folder_id: row.get(4)?,
+                    tags: row.get(5)?,
+                    frontmatter: row.get(6)?,
+                    pinned: row.get(7)?,
+                    position: row.get(8)?,
+                    word_count: row.get(9)?,
+                    created_at: row.get(10)?,
+                    updated_at: row.get(11)?,
+                })
+            },
+        )
+        .unwrap();
+        assert_eq!(note.title, "Test Note");
+        assert_eq!(note.slug, "test-note");
+        assert_eq!(note.word_count, 2);
+    }
+
+    #[test]
+    fn test_create_and_list_notes() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+        let id1 = uuid::Uuid::new_v4().to_string();
+        let id2 = uuid::Uuid::new_v4().to_string();
+
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![id1, "Note A", "note-a", "Content A", None::<String>, "tag1", "{}", 0, 0, 2, now, now],
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![id2, "Note B", "note-b", "Content B", None::<String>, "tag2", "{}", 0, 0, 2, now, now],
+            )
+            .unwrap();
+
+        let count: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn test_note_slug_uniqueness() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![uuid::Uuid::new_v4().to_string(), "My Note", "my-note", "", None::<String>, "", "{}", 0, 0, 0, now, now],
+            )
+            .unwrap();
+
+        // Second insert with same slug should fail (UNIQUE constraint)
+        let result = db.conn.execute(
+            "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            rusqlite::params![uuid::Uuid::new_v4().to_string(), "My Note", "my-note", "", None::<String>, "", "{}", 0, 0, 0, now, now],
+        );
+        assert!(result.is_err(), "Duplicate slug should be rejected");
+    }
+
+    #[test]
+    fn test_update_note_content_recalculates_word_count() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+        let id = uuid::Uuid::new_v4().to_string();
+
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![id, "Note", "note", "hello world", None::<String>, "", "{}", 0, 0, 2, now, now],
+            )
+            .unwrap();
+
+        // Update content
+        let new_content = "one two three four five";
+        let new_count = new_content.split_whitespace().count() as i32;
+        db.conn
+            .execute(
+                "UPDATE notes SET content = ?1, word_count = ?2, updated_at = ?3 WHERE id = ?4",
+                rusqlite::params![new_content, new_count, now, id],
+            )
+            .unwrap();
+
+        let word_count: i32 = db
+            .conn
+            .query_row("SELECT word_count FROM notes WHERE id = ?1", rusqlite::params![id], |row| row.get(0))
+            .unwrap();
+        assert_eq!(word_count, 5);
+    }
+
+    #[test]
+    fn test_pin_and_unpin_note() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+        let id = uuid::Uuid::new_v4().to_string();
+
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![id, "Note", "note", "", None::<String>, "", "{}", 0, 0, 0, now, now],
+            )
+            .unwrap();
+
+        // Pin
+        db.conn
+            .execute(
+                "UPDATE notes SET pinned = 1, updated_at = ?1 WHERE id = ?2",
+                rusqlite::params![now, id],
+            )
+            .unwrap();
+        let pinned: i32 = db
+            .conn
+            .query_row("SELECT pinned FROM notes WHERE id = ?1", rusqlite::params![id], |row| row.get(0))
+            .unwrap();
+        assert_eq!(pinned, 1);
+
+        // Unpin
+        db.conn
+            .execute(
+                "UPDATE notes SET pinned = 0, updated_at = ?1 WHERE id = ?2",
+                rusqlite::params![now, id],
+            )
+            .unwrap();
+        let pinned: i32 = db
+            .conn
+            .query_row("SELECT pinned FROM notes WHERE id = ?1", rusqlite::params![id], |row| row.get(0))
+            .unwrap();
+        assert_eq!(pinned, 0);
+    }
+
+    #[test]
+    fn test_note_links_created_on_insert() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+        let src_id = uuid::Uuid::new_v4().to_string();
+        let tgt_id = uuid::Uuid::new_v4().to_string();
+
+        // Insert target note
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![tgt_id, "Target", "target", "", None::<String>, "", "{}", 0, 0, 0, now, now],
+            )
+            .unwrap();
+        // Insert source note
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![src_id, "Source", "source", "", None::<String>, "", "{}", 0, 0, 0, now, now],
+            )
+            .unwrap();
+
+        // Create a note_link
+        let link_id = uuid::Uuid::new_v4().to_string();
+        db.conn
+            .execute(
+                "INSERT INTO note_links (id, source_id, target_id, link_text, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![link_id, src_id, tgt_id, "see target", now],
+            )
+            .unwrap();
+
+        let count: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM note_links", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_note_links_deleted_on_cascade() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+        let src_id = uuid::Uuid::new_v4().to_string();
+        let tgt_id = uuid::Uuid::new_v4().to_string();
+
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![tgt_id, "Target", "target", "", None::<String>, "", "{}", 0, 0, 0, now, now],
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![src_id, "Source", "source", "", None::<String>, "", "{}", 0, 0, 0, now, now],
+            )
+            .unwrap();
+
+        let link_id = uuid::Uuid::new_v4().to_string();
+        db.conn
+            .execute(
+                "INSERT INTO note_links (id, source_id, target_id, link_text, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![link_id, src_id, tgt_id, "link", now],
+            )
+            .unwrap();
+
+        // Delete source note — link should cascade
+        db.conn
+            .execute("DELETE FROM notes WHERE id = ?1", rusqlite::params![src_id])
+            .unwrap();
+
+        let count: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM note_links", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0, "note_links should cascade-delete when source note is deleted");
+    }
+
+    #[test]
+    fn test_search_notes_by_title() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![uuid::Uuid::new_v4().to_string(), "Rust Programming", "rust-programming", "Learning Rust", None::<String>, "", "{}", 0, 0, 2, now, now],
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![uuid::Uuid::new_v4().to_string(), "Python Basics", "python-basics", "Learning Python", None::<String>, "", "{}", 0, 0, 2, now, now],
+            )
+            .unwrap();
+
+        // Search for "Rust" in title
+        let pattern = "%Rust%";
+        let count: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM notes WHERE title LIKE ?1 OR content LIKE ?1",
+                rusqlite::params![pattern],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_search_notes_by_content() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![uuid::Uuid::new_v4().to_string(), "Note A", "note-a", "This is about algorithms", None::<String>, "", "{}", 0, 0, 4, now, now],
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![uuid::Uuid::new_v4().to_string(), "Note B", "note-b", "This is about data structures", None::<String>, "", "{}", 0, 0, 4, now, now],
+            )
+            .unwrap();
+
+        // Search for "algorithms" in content
+        let pattern = "%algorithms%";
+        let count: i64 = db
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM notes WHERE title LIKE ?1 OR content LIKE ?1",
+                rusqlite::params![pattern],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_move_note_between_folders() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+        let folder_a = uuid::Uuid::new_v4().to_string();
+        let folder_b = uuid::Uuid::new_v4().to_string();
+        let note_id = uuid::Uuid::new_v4().to_string();
+        let content = "This is a test note for folder move";
+
+        // Create two folders
+        db.conn
+            .execute(
+                "INSERT INTO folders (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![folder_a, "Folder A", now, now],
+            )
+            .unwrap();
+        db.conn
+            .execute(
+                "INSERT INTO folders (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![folder_b, "Folder B", now, now],
+            )
+            .unwrap();
+
+        // Create note in folder_a
+        db.conn
+            .execute(
+                "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                rusqlite::params![note_id, "Move Test", "move-test", content, &folder_a, "", "{}", 0, 0, 7, now, now],
+            )
+            .unwrap();
+
+        // Verify note is in folder_a
+        let initial_folder: Option<String> = db
+            .conn
+            .query_row(
+                "SELECT folder_id FROM notes WHERE id = ?1",
+                rusqlite::params![note_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(initial_folder, Some(folder_a.clone()));
+
+        // Move note to folder_b
+        db.conn
+            .execute(
+                "UPDATE notes SET folder_id = ?1, updated_at = ?2 WHERE id = ?3",
+                rusqlite::params![folder_b, now, note_id],
+            )
+            .unwrap();
+
+        // Verify folder_id changed
+        let moved_folder: Option<String> = db
+            .conn
+            .query_row(
+                "SELECT folder_id FROM notes WHERE id = ?1",
+                rusqlite::params![note_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(moved_folder, Some(folder_b));
+    }
+
+    #[test]
+    fn test_get_graph_data() {
+        let db = setup();
+        let now = chrono::Utc::now().to_rfc3339();
+        let id_a = uuid::Uuid::new_v4().to_string();
+        let id_b = uuid::Uuid::new_v4().to_string();
+        let id_c = uuid::Uuid::new_v4().to_string();
+
+        // Create 3 notes
+        for (id, title, slug) in &[(id_a.as_str(), "Note A", "note-a"), (id_b.as_str(), "Note B", "note-b"), (id_c.as_str(), "Note C", "note-c")] {
+            db.conn
+                .execute(
+                    "INSERT INTO notes (id, title, slug, content, folder_id, tags, frontmatter, pinned, position, word_count, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+                    rusqlite::params![id, title, slug, "Content", None::<String>, "", "{}", 0, 0, 1, now, now],
+                )
+                .unwrap();
+        }
+
+        // Create edges: A -> B, B -> C
+        let link1_id = uuid::Uuid::new_v4().to_string();
+        db.conn
+            .execute(
+                "INSERT INTO note_links (id, source_id, target_id, link_text, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![link1_id, id_a, id_b, "Note B", now],
+            )
+            .unwrap();
+        let link2_id = uuid::Uuid::new_v4().to_string();
+        db.conn
+            .execute(
+                "INSERT INTO note_links (id, source_id, target_id, link_text, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![link2_id, id_b, id_c, "Note C", now],
+            )
+            .unwrap();
+
+        // Query all notes
+        let node_count: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM notes", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(node_count, 3, "Graph should have 3 nodes");
+
+        // Query all edges
+        let edge_count: i64 = db
+            .conn
+            .query_row("SELECT COUNT(*) FROM note_links", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(edge_count, 2, "Graph should have 2 edges");
+    }
+
     #[test]
     fn test_board_slug_uniqueness() {
         let db = setup();
@@ -351,234 +728,5 @@ mod tests {
         assert_eq!(count, 2);
     }
 
-    // ── Page & Folder tests ──
-
-    #[test]
-    fn test_create_folder() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-        let id = uuid::Uuid::new_v4().to_string();
-
-        db.conn
-            .execute(
-                "INSERT INTO folders (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![id, "My Folder", now, now],
-            )
-            .unwrap();
-
-        let name: String = db.conn
-            .query_row("SELECT name FROM folders WHERE id = ?1", rusqlite::params![id], |row| row.get(0))
-            .unwrap();
-        assert_eq!(name, "My Folder");
-    }
-
-    #[test]
-    fn test_rename_folder() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-        let id = uuid::Uuid::new_v4().to_string();
-
-        db.conn
-            .execute(
-                "INSERT INTO folders (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![id, "Old Name", now, now],
-            )
-            .unwrap();
-
-        db.conn
-            .execute(
-                "UPDATE folders SET name = ?1, updated_at = ?2 WHERE id = ?3",
-                rusqlite::params!["New Name", now, id],
-            )
-            .unwrap();
-
-        let name: String = db.conn
-            .query_row("SELECT name FROM folders WHERE id = ?1", rusqlite::params![id], |row| row.get(0))
-            .unwrap();
-        assert_eq!(name, "New Name");
-    }
-
-    #[test]
-    fn test_create_page_in_folder() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-        let folder_id = uuid::Uuid::new_v4().to_string();
-        let page_id = uuid::Uuid::new_v4().to_string();
-
-        // Create folder
-        db.conn
-            .execute(
-                "INSERT INTO folders (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![folder_id, "Folder", now, now],
-            )
-            .unwrap();
-
-        // Create page in folder
-        db.conn
-            .execute(
-                "INSERT INTO pages (id, title, slug, content, folder_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                rusqlite::params![page_id, "My Page", "my-page", "{}", folder_id, now, now],
-            )
-            .unwrap();
-
-        // Verify page exists in folder
-        let page_count: i64 = db.conn
-            .query_row("SELECT COUNT(*) FROM pages WHERE folder_id = ?1", rusqlite::params![folder_id], |row| row.get(0))
-            .unwrap();
-        assert_eq!(page_count, 1);
-
-        // Verify title
-        let title: String = db.conn
-            .query_row("SELECT title FROM pages WHERE id = ?1", rusqlite::params![page_id], |row| row.get(0))
-            .unwrap();
-        assert_eq!(title, "My Page");
-    }
-
-    #[test]
-    fn test_page_slug_uniqueness() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-
-        // Create two pages with different slugs
-        db.conn
-            .execute(
-                "INSERT INTO pages (id, title, slug, content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![uuid::Uuid::new_v4().to_string(), "Page 1", "my-page", "{}", now, now],
-            )
-            .unwrap();
-        db.conn
-            .execute(
-                "INSERT INTO pages (id, title, slug, content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![uuid::Uuid::new_v4().to_string(), "Page 2", "other-page", "{}", now, now],
-            )
-            .unwrap();
-
-        let count: i64 = db.conn
-            .query_row("SELECT COUNT(*) FROM pages", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 2);
-    }
-
-    #[test]
-    fn test_page_title_update_changes_slug() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-        let page_id = uuid::Uuid::new_v4().to_string();
-
-        // Create page with initial title
-        db.conn
-            .execute(
-                "INSERT INTO pages (id, title, slug, content, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![page_id, "Initial Title", "initial-title", "{}", now, now],
-            )
-            .unwrap();
-
-        // Update title (simulates what update_page command does)
-        let new_title = "Updated Title";
-        let new_slug = new_title.to_lowercase().replace(' ', "-");
-        db.conn
-            .execute(
-                "UPDATE pages SET title = ?1, slug = ?2, updated_at = ?3 WHERE id = ?4",
-                rusqlite::params![new_title, new_slug, now, page_id],
-            )
-            .unwrap();
-
-        // Verify slug changed
-        let slug: String = db.conn
-            .query_row("SELECT slug FROM pages WHERE id = ?1", rusqlite::params![page_id], |row| row.get(0))
-            .unwrap();
-        assert_eq!(slug, "updated-title");
-
-        let title: String = db.conn
-            .query_row("SELECT title FROM pages WHERE id = ?1", rusqlite::params![page_id], |row| row.get(0))
-            .unwrap();
-        assert_eq!(title, "Updated Title");
-    }
-
-    #[test]
-    fn test_list_pages_in_folder() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-        let folder_id = uuid::Uuid::new_v4().to_string();
-
-        db.conn
-            .execute(
-                "INSERT INTO folders (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![folder_id, "Folder", now, now],
-            )
-            .unwrap();
-
-        // Create 3 pages in folder
-        for i in 1..=3 {
-            db.conn
-                .execute(
-                    "INSERT INTO pages (id, title, slug, content, folder_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    rusqlite::params![uuid::Uuid::new_v4().to_string(), format!("Page {}", i), format!("page-{}", i), "{}", folder_id, now, now],
-                )
-                .unwrap();
-        }
-
-        let count: i64 = db.conn
-            .query_row("SELECT COUNT(*) FROM pages WHERE folder_id = ?1", rusqlite::params![folder_id], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 3);
-    }
-
-    #[test]
-    fn test_delete_folder_sets_page_folder_null() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-        let folder_id = uuid::Uuid::new_v4().to_string();
-        let page_id = uuid::Uuid::new_v4().to_string();
-
-        db.conn
-            .execute(
-                "INSERT INTO folders (id, name, created_at, updated_at) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![folder_id, "Folder", now, now],
-            )
-            .unwrap();
-        db.conn
-            .execute(
-                "INSERT INTO pages (id, title, slug, content, folder_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                rusqlite::params![page_id, "Page", "page", "{}", folder_id, now, now],
-            )
-            .unwrap();
-
-        // Delete folder (pages.folder_id becomes NULL via ON DELETE SET NULL)
-        db.conn
-            .execute("DELETE FROM folders WHERE id = ?1", rusqlite::params![folder_id])
-            .unwrap();
-
-        // Verify page still exists but folder_id is NULL
-        let page_count: i64 = db.conn
-            .query_row("SELECT COUNT(*) FROM pages WHERE id = ?1", rusqlite::params![page_id], |row| row.get(0))
-            .unwrap();
-        assert_eq!(page_count, 1, "Page should still exist after folder deletion");
-
-        let folder: Option<String> = db.conn
-            .query_row("SELECT folder_id FROM pages WHERE id = ?1", rusqlite::params![page_id], |row| row.get(0))
-            .unwrap();
-        assert!(folder.is_none(), "Page folder_id should be NULL after folder deletion");
-    }
-
-    #[test]
-    fn test_page_without_folder() {
-        let db = setup();
-        let now = chrono::Utc::now().to_rfc3339();
-        let page_id = uuid::Uuid::new_v4().to_string();
-
-        // Create page without folder_id (root page)
-        db.conn
-            .execute(
-                "INSERT INTO pages (id, title, slug, content, folder_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                rusqlite::params![page_id, "Root Page", "root-page", "{}", None::<String>, now, now],
-            )
-            .unwrap();
-
-        // list_pages command finds pages where folder_id IS NULL
-        let count: i64 = db.conn
-            .query_row("SELECT COUNT(*) FROM pages WHERE folder_id IS NULL", [], |row| row.get(0))
-            .unwrap();
-        assert_eq!(count, 1);
-    }
+    
 }

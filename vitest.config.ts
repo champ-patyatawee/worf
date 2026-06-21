@@ -11,7 +11,7 @@ export default defineConfig({
     css: { modules: { classNameStrategy: "non-scoped" } },
     server: {
       deps: {
-        inline: ["novel", "react-tweet"],
+        inline: ["react-tweet"],
       },
     },
   },

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, StickyNote, Columns3, Bot, Terminal, Settings } from "lucide-react";
+import { LayoutDashboard, Columns3, Bot, StickyNote, Terminal, Settings } from "lucide-react";
 import { terminalStore } from "../../stores/terminalStore";
 
 const tabs = [
   { id: "dashboard", icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { id: "note", icon: StickyNote, label: "Notes", path: "/notes" },
+  { id: "notes", icon: StickyNote, label: "Notes", path: "/notes" },
   { id: "kanban", icon: Columns3, label: "Kanban", path: "/kanban" },
   { id: "ai-chat", icon: Bot, label: "AI Chat", path: "/ai-chat" },
 ];
@@ -24,7 +24,7 @@ export function IconSidebar() {
   const activeTab = () => {
     const path = location.pathname;
     if (path === "/") return "dashboard";
-    if (path.startsWith("/notes")) return "note";
+    if (path.startsWith("/notes")) return "notes";
     if (path.startsWith("/kanban")) return "kanban";
     if (path.startsWith("/ai-chat")) return "ai-chat";
     if (path.startsWith("/settings")) return "settings";

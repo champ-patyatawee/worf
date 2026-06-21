@@ -8,7 +8,6 @@ import {
   PomodoroWidget,
   TaskOverviewWidget,
   ProjectsWidget,
-  NoteOverviewWidget,
 } from '../components/dashboard';
 
 const LAYOUT_KEY = 'dashboard-layout';
@@ -31,7 +30,6 @@ const ALL_WIDGETS: WidgetMeta[] = [
   { id: 'clock', name: 'Clock', component: <ClockWidget />, defaultRect: { x: 369, y: 203, w: 292, h: 257 } },
   { id: 'projects', name: 'Projects', component: <ProjectsWidget />, defaultRect: { x: 691, y: 8, w: 371, h: 448 } },
   { id: 'tasks', name: 'Tasks', component: <TaskOverviewWidget />, defaultRect: { x: 0, y: 486, w: 190, h: 232 } },
-  { id: 'notes', name: 'Notes', component: <NoteOverviewWidget />, defaultRect: { x: 201, y: 489, w: 361, h: 237 } },
 ];
 
 const WIDGET_MAP: Record<string, React.ReactNode> = {};
