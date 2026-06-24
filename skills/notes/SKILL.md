@@ -15,6 +15,7 @@ metadata:
 - Wire up wikilink parsing, resolution, and graph traversal
 - Implement AI generate/edit/complete for Markdown content (placeholder UI)
 - Maintain drag-and-drop reordering (folders and notes via the `⋮` drag handle), pinning, tags, folder organization, and multi-folder simultaneous expand
+- Implement and maintain **multi-select** (Shift+click range select, Cmd/Ctrl+click toggle) and **batch move** (move multiple selected notes to a folder via action bar button, dialog, or drag)
 
 ## When to use me
 Use when working on the Notes module — adding note-taking features, wiring up wikilinks, building the graph view, implementing the quick switcher, adding folder/tag organization, pin/favorite support, AI generation for Markdown, drag-and-drop reordering, or improving the note editor. Invoke this skill whenever files under `src/components/notes/`, `src-tauri/src/commands/notes.rs`, `src-tauri/src/commands/folders.rs`, `src-tauri/migrations/002_notes.sql`, `src-tauri/migrations/003_folders_position.sql`, or the `notes`, `note_links`, and `folders` database tables are involved.
@@ -66,14 +67,14 @@ src-tauri/
 │   ├── lib.rs                       # Registers all notes + folders commands
 │   └── commands/
 │       ├── mod.rs                   # pub mod notes; pub mod folders;
-│       ├── notes.rs                 # 12 backend commands
+│   ├── notes.rs                 # 13 backend commands
 │       └── folders.rs               # 5 backend commands (folder CRUD + reorder)
 ```
 
 ## Key Frontend Components
 
 ### `NoteSidebar.tsx`
-Left sidebar for note organization (701 lines):
+Left sidebar for note organization (~900 lines):
 
 - **Search bar** at top (triggers QuickSwitcher on focus or Cmd+P)
 - **Pinned notes section** — displays notes where `pinned === 1` with pushpin icon
@@ -91,10 +92,33 @@ Left sidebar for note organization (701 lines):
   - Drag a **note** within the same folder → reorders notes by position
   - Drag a **folder** onto another folder → reorders the folder list
   - Uses `draggedItemRef` pattern (a `useRef<DragPayload>`) for reliable drag state, plus `dataTransfer` with `DragPayload` type discriminator (`{ type: "note" | "folder" }`)
+- **Multi-select**:
+  - `selectedNoteIds` is a `Set<string>` in React state for tracking selected notes
+  - **Shift+click** on a note selects a contiguous range — clicks the first note, then Shift+click on another note selects all notes between them (inclusive). The range is computed from the visible note list for the currently expanded folder.
+  - **Cmd/Ctrl+click** toggles an individual note in/out of the selection set without affecting the current selection
+  - Clicking a note without Shift or Cmd/Ctrl **clears** the selection and navigates to the note (unless it is the active note — a second click on the active note deactivates it; if the active note is clicked while other notes are selected, selection is cleared and note is navigated to)
+  - Visual feedback: selected `NoteItem` rows get a **highlight outline** (`outline: '2px solid var(--color-accent-primary)', outlineOffset: '-2px'`, combined with `backgroundColor: 'var(--color-accent-subtle)'`)
+  - When one or more notes are selected, the `NoteItem` renders a small checkmark indicator in place of the usual `FileText` icon
+- **Batch move UI**:
+  - When `selectedNoteIds.size > 0`, the bottom action bar transforms to show:
+    - A count badge (`"X selected"`)
+    - A **"Move to folder..."** button that opens a folder picker dialog
+  - **Folder picker dialog**: a modal overlay listing all folders (plus an "Unfiled" option). Clicking a folder:
+    1. Calls `noteStore.moveNotes(Array.from(selectedNoteIds), folderId)` (or `null` for unfiled)
+    2. Clears the selection
+    3. Closes the dialog
+    4. Triggers sidebar refresh
+  - The dialog is dismissible via Escape key, an explicit "Cancel" button, or click-outside (on the overlay backdrop)
+- **Drag-to-move with multi-select**:
+  - When dragging a selected note, **all** selected notes move to the target folder, not just the dragged note
+  - The `handleGlobalPointerUp` drop handler checks if the dragged note's ID is in `selectedNoteIds`. If so, it calls `noteStore.moveNotes(Array.from(selectedNoteIds), targetFolderId)` instead of `noteStore.moveNote(noteId, targetFolderId)`
+  - This allows bulk moving via drag-and-drop without needing the action bar dialog
 - **Context menu** (right-click on folder or click `⋮` button) — Rename (inline edit) or Delete
 - **Inline folder creation** — bottom bar has a "New Folder" button that shows an inline input
 - **Tags section** — displays all tags with counts; clicking a tag filters notes by that tag
-- **Bottom action bar** — "New Note" button (creates note in the active folder via `activeFolderIdRef.current`) + "New Folder" button
+- **Bottom action bar**:
+  - Default state: "New Note" button + "New Folder" button
+  - Multi-select state (when `selectedNoteIds.size > 0`): count badge + "Move to folder..." button. The "New Note"/"New Folder" buttons are hidden during multi-select.
 
 ### `NoteEditor.tsx`
 Main Markdown editor (840 lines) — the most complex component:
@@ -196,6 +220,7 @@ export const noteStore = {
   saveNote,
   deleteNote,
   moveNote,
+  moveNotes,
   searchNotes,
   loadGraphData,
   togglePinNote,
@@ -313,7 +338,7 @@ Returns all notes as nodes and all `note_links` as edges. Used by `GraphView.tsx
 
 ## Backend Commands Reference
 
-### Notes Commands (12 commands in `notes.rs`)
+### Notes Commands (13 commands in `notes.rs`)
 
 | Command | Signature | Description |
 |---|---|---|
@@ -324,7 +349,8 @@ Returns all notes as nodes and all `note_links` as edges. Used by `GraphView.tsx
 | `list_notes` | `(folder_id: Option<String>, tag: Option<String>, search: Option<String>) -> Result<Vec<Note>, String>` | Lists notes with optional filters, ordered by `pinned DESC, position ASC, updated_at DESC` |
 | `list_root_notes` | `() -> Result<Vec<Note>, String>` | Lists notes with `folder_id IS NULL` (unfiled) |
 | `list_notes_in_folder` | `(folder_id: String) -> Result<Vec<Note>, String>` | Lists all notes in a specific folder |
-| `move_note` | `(id: String, folder_id: Option<String>) -> Result<Note, String>` | Moves note to folder (or unassigns). Assigns next available position in destination |
+| `move_note` | `(id: String, folder_id: Option<String>) -> Result<Note, String>` | Moves a single note to folder (or unassigns). Assigns next available position in destination |
+| `move_notes` | `(ids: Vec<String>, folder_id: Option<String>) -> Result<(), String>` | Batch-moves multiple notes to a folder. Calculates `COALESCE(MAX(position), -1) + 1` as base position, then assigns sequential positions (`base_pos + i`) to each note. Does NOT return individual notes — the frontend refreshes via `triggerSidebarRefresh()` |
 | `reorder_notes` | `(items: Vec<ReorderItem>) -> Result<(), String>` | Batch-updates positions for a list of notes |
 | `get_graph_data` | `() -> Result<GraphData, String>` | Returns all notes as nodes + all `note_links` as edges |
 | `get_backlinks` | `(note_id: String) -> Result<Vec<LinkInfo>, String>` | Returns all notes linking TO the given note |
@@ -445,17 +471,42 @@ noteStore → emit() → NoteEditor + BacklinksPanel re-render
 User drags a note onto a folder in NoteSidebar
        │
        ▼
-handleFolderDrop(e, folder)
-  ├── Check DragPayload.type === "note"
-  ├── If folder changed:
-  │     ├── noteStore.moveNote(id, folderId)
-  │     │     └── invoke('move_note', { id, folderId })
-  │     │           └── Rust: assign new position = MAX(position) + 1 in destination
-  │     └── triggerSidebarRefresh()
+handleGlobalPointerUp(e)
+  ├── Find drop target folder via elementFromPoint + [data-folder-id]
+  ├── If target folder changed:
+  │     ├── IF dragged note is in selectedNoteIds:
+  │     │     └── noteStore.moveNotes(Array.from(selectedNoteIds), targetFolderId)
+  │     │           └── invoke('move_notes', { ids: [...], folderId })
+  │     │                 └── Rust: assign sequential positions (base_pos + i) per note
+  │     ├── ELSE (single note, not selected):
+  │     │     └── noteStore.moveNote(id, folderId)
+  │     │           └── invoke('move_note', { id, folderId })
+  │     │                 └── Rust: assign new position = MAX(position) + 1
+  │     ├── triggerSidebarRefresh()
+  │     └── clearSelection()
   └── If same folder (reorder):
         ├── Compute reordered list based on drop position
         └── noteStore.reorderNotes(items)
               └── invoke('reorder_notes', { items })
+```
+
+### Batch Move via Action Bar (Dialog)
+```
+User selects multiple notes → "Move to folder..." button appears
+       │
+       ▼
+Click "Move to folder..." → Folder picker dialog opens
+       │
+       ▼
+User clicks a folder (or "Unfiled") in the dialog
+       │
+       ▼
+noteStore.moveNotes(Array.from(selectedNoteIds), folderId)
+  ├── invoke('move_notes', { ids: [...], folderId })
+  │     └── Rust: UPDATE notes SET folder_id, position, updated_at WHERE id IN (...)
+  ├── triggerSidebarRefresh()
+  ├── clearSelection()
+  └── closeDialog()
 ```
 
 ## TypeScript Types (in `src/components/notes/Types.ts`)
@@ -652,6 +703,18 @@ const moved = await invoke<Note>('move_note', {
   id: 'note-uuid',
   folderId: 'folder-uuid',
 });
+
+// Batch move multiple notes to folder
+await invoke('move_notes', {
+  ids: ['note-uuid-1', 'note-uuid-2', 'note-uuid-3'],
+  folderId: 'folder-uuid',
+});
+
+// Batch move multiple notes to unfiled
+await invoke('move_notes', {
+  ids: ['note-uuid-1', 'note-uuid-2'],
+  folderId: null,
+});
 ```
 
 ## Important Gotchas
@@ -716,6 +779,18 @@ const moved = await invoke<Note>('move_note', {
 
 30. **Delete note button is in the editor status bar**: The `Trash2` icon is in the bottom status bar of `NoteEditor.tsx`, next to the pin and creation-date elements. It calls `handleDelete()` which shows a `confirm()` dialog, then calls `noteStore.deleteNote()` and navigates away to `/notes`.
 
+31. **Shift+click range selection is computed from the visible rendered note list**: When the user Shift+clicks, the range is determined by the order of `NoteItem` elements currently in the DOM for the active folder (`document.querySelectorAll('[data-note-id]')`). The "anchor" note (the last note that was clicked without Shift) is tracked in a `rangeAnchorRef`. If no anchor is set and the user Shift+clicks, only the clicked note is selected.
+
+32. **Multi-select clears on sidebar refresh**: When `sidebarRefreshKey` changes and notes are re-fetched, `selectedNoteIds` is cleared. This prevents stale IDs from persisting after notes have been moved, deleted, or renamed. Selection also clears when the active folder changes.
+
+33. **Bottom action bar has two display modes**: The bar conditionally renders either the default ("New Note" + "New Folder") or multi-select mode ("X selected" count + "Move to folder..." button). When `selectedNoteIds.size > 0`, the default buttons are hidden. The multi-select buttons are hidden when `selectedNoteIds.size === 0`.
+
+34. **Drag-to-move uses `selectedNoteIds` not individual selection**: If the user has selected 3 notes and drags one of them, ALL 3 notes are moved. This is checked in the drop handler: if `selectedNoteIds.has(draggedNoteId)`, batch-move all selected notes; if not, move only the dragged note. This means dragging an unselected note while other notes are selected moves ONLY the dragged note.
+
+35. **`move_notes` does NOT return individual Note objects**: Unlike `move_note` (which returns the updated `Note`), `move_notes` returns `Result<()>`. The frontend must rely on `triggerSidebarRefresh()` to re-fetch the full note list after a batch move. This is intentional — returning many Note objects could be wasteful for large batches.
+
+36. **Folder dialog is a simple overlay, not a command palette**: The "Move to folder..." dialog renders a list of all folders (from `noteStore.state.folders`) plus an "Unfiled" option (represented as `folderId: null`). It does NOT support search/filtering. Each folder row shows its name and has an accent-colored hover effect. Clicking the row triggers the move and closes the dialog.
+
 ## Design Patterns
 
 ### Pub/Sub Note Store
@@ -751,6 +826,20 @@ The `noteStore.ts` follows the same pattern as `chatSessionStore.ts`:
 - `triggerSidebarRefresh()` increments `sidebarRefreshKey` in store
 - `NoteSidebar` subscribes to `sidebarRefreshKey` changes and re-fetches notes/folders appropriately
 - Active folder is preserved via ref
+
+### Multi-Select Pattern
+Multi-select follows a simple pattern without external libraries:
+- **State**: `selectedNoteIds` is a `Set<string>` in React state initialized to `new Set()`
+- **Range anchor**: `rangeAnchorRef` is a `useRef<string | null>` that tracks the last note clicked without Shift (the anchor for Shift+click range selection)
+- **Shift+click**: From a `handleNoteClick` variant that receives the click event, detect `e.shiftKey`. Find the anchor from `rangeAnchorRef`, then compute all note elements between anchor and clicked note in DOM order. Add all of them to `selectedNoteIds`.
+- **Cmd/Ctrl+click**: Detect `e.metaKey || e.ctrlKey`. Toggle the clicked note in `selectedNoteIds` (if present, remove it; if absent, add it). Do NOT set the range anchor.
+- **Plain click**: Clear `selectedNoteIds`, set `rangeAnchorRef` to the clicked note's ID, and navigate to the note (unless it's the active note — second click deactivates).
+- **Selection clearing**: `clearSelection()` is called after batch move, sidebar refresh, folder change, or any single-note navigation.
+
+### Batch Move Pattern
+- **Store action**: `noteStore.moveNotes(ids: string[], folderId: string | null)` calls `invoke('move_notes', { ids, folderId })`, then updates `state.notes` by mapping each moved note's `folder_id` and a new placeholder position, then calls `triggerSidebarRefresh()`.
+- **Backend command**: `move_notes` in Rust takes `ids: Vec<String>` and `folder_id: Option<String>`. It computes `base_pos = MAX(position) + 1` in the target folder, then assigns `base_pos + i` to each note in order. This ensures sequential positioning without gaps.
+- **Drag integration**: The drop handler checks `selectedNoteIds.has(draggedNoteId)` — if true, batch-moves all selected; if false, single-moves only the dragged note. This prevents accidentally moving unselected notes when dragging alongside a selection.
 
 ## Test Commands
 

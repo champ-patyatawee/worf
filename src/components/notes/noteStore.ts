@@ -6,6 +6,7 @@ import type { Note, NoteWithRelations, Folder, SearchResult, GraphData } from ".
 export interface NoteState {
   notes: Note[];
   folders: Folder[];
+  draftFolderId: string | null;
   activeNoteId: string | null;
   activeNote: NoteWithRelations | null;
   loading: boolean;
@@ -23,6 +24,7 @@ const listeners = new Set<Listener>();
 let state: NoteState = {
   notes: [],
   folders: [],
+  draftFolderId: null,
   activeNoteId: null,
   activeNote: null,
   loading: false,
@@ -114,6 +116,17 @@ export const noteStore = {
       const folders = await invoke<Folder[]>("list_folders");
       state.folders = folders;
       emit();
+      // Ensure draft folder exists — get or create it
+      try {
+        const draft = await invoke<Folder>("ensure_draft_folder");
+        state.draftFolderId = draft.id;
+        if (!state.folders.find((f) => f.id === draft.id)) {
+          state.folders = [...state.folders, draft];
+          emit();
+        }
+      } catch (e) {
+        console.error("Failed to ensure draft folder:", e);
+      }
     } catch (e: any) {
       console.error("Failed to load folders:", e);
     }
@@ -211,6 +224,22 @@ export const noteStore = {
       triggerSidebarRefresh();
     } catch (e: any) {
       console.error("Failed to move note:", e);
+    }
+  },
+
+  async moveNotes(ids: string[], folderId: string | null) {
+    try {
+      await invoke("move_notes", { ids, folderId });
+      for (const id of ids) {
+        state.notes = state.notes.map((n) =>
+          n.id === id ? { ...n, folder_id: folderId } : n
+        );
+      }
+      state.tags = aggregateTags(state.notes);
+      emit();
+      triggerSidebarRefresh();
+    } catch (e: any) {
+      console.error("Failed to move notes:", e);
     }
   },
 

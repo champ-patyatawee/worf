@@ -83,11 +83,13 @@ pub fn run() {
             commands::notes::list_root_notes,
             commands::notes::list_notes_in_folder,
             commands::notes::move_note,
+            commands::notes::move_notes,
             commands::notes::get_graph_data,
             commands::notes::get_backlinks,
             commands::notes::search_notes,
             commands::notes::reorder_notes,
             commands::notes::toggle_pin_note,
+            commands::notes::ensure_draft_folder,
             // Folders
             commands::folders::list_folders,
             commands::folders::create_folder,

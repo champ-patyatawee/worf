@@ -1,3 +1,4 @@
+use crate::commands::folders::Folder;
 use crate::AppState;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -504,6 +505,37 @@ pub fn move_note(state: State<AppState>, id: String, folder_id: Option<String>) 
 }
 
 #[tauri::command]
+pub fn move_notes(
+    state: State<AppState>,
+    ids: Vec<String>,
+    folder_id: Option<String>,
+) -> Result<(), String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Calculate starting position (all notes go after existing notes in target folder)
+    let base_pos: i32 = db
+        .conn
+        .query_row(
+            "SELECT COALESCE(MAX(position), -1) FROM notes WHERE folder_id IS ?1",
+            rusqlite::params![folder_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let base_pos = base_pos + 1;
+
+    for (i, id) in ids.iter().enumerate() {
+        db.conn
+            .execute(
+                "UPDATE notes SET folder_id = ?1, position = ?2, updated_at = ?3 WHERE id = ?4",
+                rusqlite::params![folder_id, base_pos + i as i32, now, id],
+            )
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn reorder_notes(state: State<AppState>, items: Vec<ReorderItem>) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let now = chrono::Utc::now().to_rfc3339();
@@ -626,4 +658,76 @@ pub fn toggle_pin_note(state: State<AppState>, id: String) -> Result<Note, Strin
         &format!("{} FROM notes WHERE id = ?1", NOTE_SELECT),
         &[&id as &dyn rusqlite::types::ToSql],
     )
+}
+
+#[tauri::command]
+pub fn ensure_draft_folder(state: State<AppState>) -> Result<Folder, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+
+    // Check settings for existing draft folder ID
+    let draft_id: Option<String> = db
+        .conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'draft_folder_id'",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
+
+    // If we have a stored ID, verify the folder still exists
+    if let Some(ref id) = draft_id {
+        let existing = db.conn.query_row(
+            "SELECT id, name, position, created_at, updated_at FROM folders WHERE id = ?1",
+            rusqlite::params![id],
+            |row| {
+                Ok(crate::commands::folders::Folder {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    position: row.get(2)?,
+                    created_at: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            },
+        );
+        if let Ok(folder) = existing {
+            return Ok(folder);
+        }
+    }
+
+    // Create new Draft folder
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    let position: i32 = db
+        .conn
+        .query_row(
+            "SELECT COALESCE(MAX(position), -1) FROM folders",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let position = position + 1;
+
+    db.conn
+        .execute(
+            "INSERT INTO folders (id, name, position, created_at, updated_at) VALUES (?1, 'Draft', ?2, ?3, ?4)",
+            rusqlite::params![id, position, now, now],
+        )
+        .map_err(|e| e.to_string())?;
+
+    // Store the draft folder ID in settings
+    let settings_id = uuid::Uuid::new_v4().to_string();
+    db.conn
+        .execute(
+            "INSERT OR REPLACE INTO settings (id, key, value, created_at, updated_at) VALUES (?1, 'draft_folder_id', ?2, ?3, ?4)",
+            rusqlite::params![settings_id, id, now, now],
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(crate::commands::folders::Folder {
+        id,
+        name: "Draft".to_string(),
+        position,
+        created_at: now.clone(),
+        updated_at: now,
+    })
 }

@@ -454,6 +454,71 @@ describe("noteStore", () => {
       // Note should remain unchanged
       expect(noteStore.state.notes[0].folder_id).toBe("f1");
     });
+
+    it("moveNote still works for single note (alongside moveNotes)", async () => {
+      noteStore.state.notes = [mockNote];
+      const moved = { ...mockNote, folder_id: "new-folder" };
+      vi.mocked(invoke).mockResolvedValue(moved);
+      await noteStore.moveNote(mockNote.id, "new-folder");
+      expect(noteStore.state.notes[0].folder_id).toBe("new-folder");
+    });
+  });
+
+  describe("moveNotes (batch)", () => {
+    it("calls invoke with array of ids and target folderId", async () => {
+      const ids = ["note-1", "note-2", "note-3"];
+      const targetFolder = "folder-abc";
+      vi.mocked(invoke).mockResolvedValue(undefined);
+      await noteStore.moveNotes(ids, targetFolder);
+      expect(invoke).toHaveBeenCalledWith("move_notes", {
+        ids,
+        folderId: targetFolder,
+      });
+    });
+
+    it("passes null folderId when moving to root", async () => {
+      const ids = ["note-1"];
+      vi.mocked(invoke).mockResolvedValue(undefined);
+      await noteStore.moveNotes(ids, null);
+      expect(invoke).toHaveBeenCalledWith("move_notes", { ids, folderId: null });
+    });
+
+    it("updates folder_id for all moved notes in state", async () => {
+      const notes = [
+        { ...mockNote, id: "n1", folder_id: "old-folder" },
+        { ...mockNote, id: "n2", folder_id: "old-folder" },
+      ];
+      noteStore.state.notes = notes as any;
+      vi.mocked(invoke).mockResolvedValue(undefined);
+      await noteStore.moveNotes(["n1", "n2"], "new-folder");
+      expect(noteStore.state.notes.find((n) => n.id === "n1")?.folder_id).toBe("new-folder");
+      expect(noteStore.state.notes.find((n) => n.id === "n2")?.folder_id).toBe("new-folder");
+    });
+
+    it("updates folder_id to null when moving to root", async () => {
+      const notes = [
+        { ...mockNote, id: "n1", folder_id: "some-folder" },
+      ];
+      noteStore.state.notes = notes as any;
+      vi.mocked(invoke).mockResolvedValue(undefined);
+      await noteStore.moveNotes(["n1"], null);
+      expect(noteStore.state.notes.find((n) => n.id === "n1")?.folder_id).toBeNull();
+    });
+
+    it("handles errors gracefully without throwing", async () => {
+      vi.mocked(invoke).mockRejectedValue(new Error("fail"));
+      await expect(noteStore.moveNotes(["n1"], "f1")).resolves.not.toThrow();
+    });
+
+    it("preserves existing folder_id on invoke failure", async () => {
+      const notes = [
+        { ...mockNote, id: "n1", folder_id: "old-folder" },
+      ];
+      noteStore.state.notes = notes as any;
+      vi.mocked(invoke).mockRejectedValue(new Error("fail"));
+      await noteStore.moveNotes(["n1"], "new-folder");
+      expect(noteStore.state.notes.find((n) => n.id === "n1")?.folder_id).toBe("old-folder");
+    });
   });
 
   describe("createFolder", () => {

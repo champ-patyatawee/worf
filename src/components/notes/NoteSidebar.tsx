@@ -17,11 +17,26 @@ import {
 import { noteStore, triggerSidebarRefresh } from "./noteStore";
 import type { Note, Folder as FolderType } from "./Types";
 
-// ── Drag data helpers ──
+// ── Module-level drag state (shared via pointer events, like KanbanTaskCard) ──
 
-type DragPayload =
-  | { type: "note"; id: string; folderId: string | null; position: number }
-  | { type: "folder"; id: string; position: number };
+const dragState = {
+  noteId: null as string | null,
+  sourceFolderId: null as string | null,
+  ghostEl: null as HTMLElement | null,
+  offsetX: 0,
+  offsetY: 0,
+  isDragging: false,
+};
+
+function cleanupDrag() {
+  if (dragState.ghostEl) {
+    dragState.ghostEl.remove();
+    dragState.ghostEl = null;
+  }
+  dragState.noteId = null;
+  dragState.sourceFolderId = null;
+  dragState.isDragging = false;
+}
 
 export function NoteSidebar() {
   const navigate = useNavigate();
@@ -39,8 +54,13 @@ export function NoteSidebar() {
   const [renameValue, setRenameValue] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
-  const [unfiledExpanded, setUnfiledExpanded] = useState(true);
-  const draggedItemRef = useRef<DragPayload | null>(null);
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
+  const [lastClickedId, setLastClickedId] = useState<string | null>(null);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const selectedNoteIdsRef = useRef<Set<string>>(new Set());
+  /** Ref to access setDragOverFolder from global handlers without stale closure */
+  const setDragOverFolderRef = useRef(setDragOverFolder);
+  setDragOverFolderRef.current = setDragOverFolder;
 
   const st = noteStore.state;
 
@@ -151,21 +171,18 @@ export function NoteSidebar() {
     [renameValue]
   );
 
-  // ── Reorder logic ──
+  // ── Reorder logic (refactored — no longer takes DragEvent) ──
 
   const handleReorderNotesInFolder = useCallback(
-    (folderId: string, noteId: string, e: React.DragEvent) => {
-      const targetEl = (e.target as HTMLElement).closest("[data-note-id]");
-      if (!targetEl) return;
-      const targetId = targetEl.getAttribute("data-note-id");
-      if (!targetId || targetId === noteId) return;
+    (folderId: string, noteId: string, targetNoteId: string) => {
+      if (targetNoteId === noteId) return;
 
       const folderNotesList = st.notes
         .filter((n) => n.folder_id === folderId && n.pinned !== 1)
         .sort((a, b) => a.position - b.position);
 
       const draggedIdx = folderNotesList.findIndex((n) => n.id === noteId);
-      const targetIdx = folderNotesList.findIndex((n) => n.id === targetId);
+      const targetIdx = folderNotesList.findIndex((n) => n.id === targetNoteId);
       if (draggedIdx === -1 || targetIdx === -1) return;
 
       const reordered = [...folderNotesList];
@@ -178,103 +195,173 @@ export function NoteSidebar() {
     [st.notes]
   );
 
-  // ── Note drag handlers ──
+  // ── Pointer-event drag system (replaces HTML5 drag-and-drop) ──
 
-  const handleNoteDragStart = useCallback(
-    (e: React.DragEvent, note: Note) => {
-      const payload: DragPayload = {
-        type: "note",
-        id: note.id,
-        folderId: note.folder_id,
-        position: note.position,
-      };
-      draggedItemRef.current = payload;
-      e.dataTransfer.setData("text/plain", JSON.stringify(payload));
-      e.dataTransfer.effectAllowed = "move";
-      (e.currentTarget as HTMLElement).style.opacity = "0.4";
+  // Stable ref for the latest notes/folders so global handlers don't go stale
+  const notesRef = useRef(st.notes);
+  notesRef.current = st.notes;
+  const foldersRef = useRef(st.folders);
+  foldersRef.current = st.folders;
+  const reorderRef = useRef(handleReorderNotesInFolder);
+  reorderRef.current = handleReorderNotesInFolder;
+
+  // Keep selectedNoteIdsRef in sync with state
+  useEffect(() => { selectedNoteIdsRef.current = selectedNoteIds; }, [selectedNoteIds]);
+
+  // Handle pointer down on a note — store drag start info, wait for movement
+  const handleNotePointerDown = useCallback(
+    (e: React.PointerEvent, note: Note) => {
+      if (e.button !== 0) return;
+      // Don't start drag from buttons inside the note item
+      if ((e.target as HTMLElement).closest('button, input, textarea')) return;
+
+      const el = e.currentTarget as HTMLElement;
+      const rect = el.getBoundingClientRect();
+
+      dragState.noteId = note.id;
+      dragState.sourceFolderId = note.folder_id;
+      dragState.offsetX = e.clientX - rect.left;
+      dragState.offsetY = e.clientY - rect.top;
+      dragState.isDragging = true;
+
+      el.setPointerCapture(e.pointerId);
+      el.style.cursor = 'grabbing';
     },
     []
   );
 
-  const handleNoteDragEnd = useCallback((e: React.DragEvent) => {
-    draggedItemRef.current = null;
-    (e.currentTarget as HTMLElement).style.opacity = "1";
+  // Global pointermove handler — creates ghost on first move, then moves it
+  const handleGlobalPointerMove = useCallback((e: PointerEvent) => {
+    if (!dragState.isDragging) return;
+
+    // Create ghost on first pointer move (not on pointerDown, so clicks still work)
+    if (!dragState.ghostEl) {
+      // Find the note element by data-note-id
+      const noteEl = document.querySelector(
+        `[data-note-id="${dragState.noteId}"]`
+      ) as HTMLElement | null;
+      if (!noteEl) return;
+
+      const ghost = noteEl.cloneNode(true) as HTMLElement;
+      ghost.style.position = 'fixed';
+      ghost.style.left = `${e.clientX - dragState.offsetX}px`;
+      ghost.style.top = `${e.clientY - dragState.offsetY}px`;
+      ghost.style.width = `${noteEl.offsetWidth}px`;
+      ghost.style.zIndex = '9999';
+      ghost.style.pointerEvents = 'none';
+      ghost.style.opacity = '0.85';
+      ghost.style.transform = 'rotate(2deg) scale(1.02)';
+      ghost.style.boxShadow = '8px 8px 0px #0D0D0D';
+      ghost.style.transition = 'none';
+      // Hide action buttons in ghost
+      ghost.querySelectorAll('button').forEach((btn) => { btn.style.opacity = '0'; });
+      document.body.appendChild(ghost);
+      dragState.ghostEl = ghost;
+    }
+
+    // Move the ghost
+    dragState.ghostEl.style.left = `${e.clientX - dragState.offsetX}px`;
+    dragState.ghostEl.style.top = `${e.clientY - dragState.offsetY}px`;
+
+    // Highlight folder under cursor
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el) {
+      const folderRow = el.closest('[data-folder-id]') as HTMLElement | null;
+      if (folderRow) {
+        const fid = folderRow.getAttribute('data-folder-id');
+        setDragOverFolderRef.current(fid);
+      } else {
+        setDragOverFolderRef.current(null);
+      }
+    } else {
+      setDragOverFolderRef.current(null);
+    }
   }, []);
 
-  // ── Folder drag handlers (for reordering folders) ──
+  // Global pointerup handler — performs the drop
+  const handleGlobalPointerUp = useCallback((e: PointerEvent) => {
+    if (!dragState.isDragging) {
+      cleanupDrag();
+      return;
+    }
 
-  const handleFolderDragStart = useCallback(
-    (e: React.DragEvent, folder: FolderType) => {
-      const payload: DragPayload = {
-        type: "folder",
-        id: folder.id,
-        position: folder.position,
-      };
-      draggedItemRef.current = payload;
-      e.dataTransfer.setData("text/plain", JSON.stringify(payload));
-      e.dataTransfer.effectAllowed = "move";
-      (e.currentTarget as HTMLElement).style.opacity = "0.4";
-    },
-    []
-  );
+    const noteId = dragState.noteId!;
+    const sourceFolderId = dragState.sourceFolderId;
+    cleanupDrag();
+    // Reset folder highlight
+    setDragOverFolderRef.current(null);
+    // Restore pointer capture release if needed
+    const noteEl = document.querySelector(`[data-note-id="${noteId}"]`) as HTMLElement | null;
+    if (noteEl) {
+      noteEl.style.cursor = '';
+    }
 
-  const handleFolderDragEnd = useCallback((e: React.DragEvent) => {
-    draggedItemRef.current = null;
-    (e.currentTarget as HTMLElement).style.opacity = "1";
-  }, []);
+    // Find what's under the pointer
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el) return;
 
-  // ── Folder drop target (for moving notes into folders, and reordering folders) ──
+    // Check if dropped on a folder
+    const folderRow = el.closest('[data-folder-id]') as HTMLElement | null;
+    if (folderRow) {
+      const targetFolderId = folderRow.getAttribute('data-folder-id');
+      if (!targetFolderId) return;
 
-  const handleFolderDragOver = useCallback(
-    (e: React.DragEvent, folderId: string) => {
-      const payload = draggedItemRef.current;
-      if (!payload) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      setDragOverFolder(folderId);
-    },
-    []
-  );
-
-  const handleFolderDragLeave = useCallback(() => {
-    setDragOverFolder(null);
-  }, []);
-
-  const handleFolderDrop = useCallback(
-    (e: React.DragEvent, folder: FolderType) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setDragOverFolder(null);
-      const payload = draggedItemRef.current;
-      if (!payload) return;
-
-      if (payload.type === "note") {
-        if (payload.folderId !== folder.id) {
-          // Move note to this folder
-          noteStore.moveNote(payload.id, folder.id);
+      if (targetFolderId !== sourceFolderId) {
+        // Move note(s) to a different folder
+        const selectedIds = selectedNoteIdsRef.current;
+        if (selectedIds.size > 0 && selectedIds.has(noteId)) {
+          noteStore.moveNotes(Array.from(selectedIds), targetFolderId);
+          setSelectedNoteIds(new Set());
         } else {
-          // Reorder within same folder
-          handleReorderNotesInFolder(folder.id, payload.id, e);
+          noteStore.moveNote(noteId, targetFolderId);
         }
-      } else if (payload.type === "folder") {
-        if (payload.id !== folder.id) {
-          // Reorder folders
-          const sorted = [...st.folders].sort((a, b) => a.position - b.position);
-          const draggedIdx = sorted.findIndex((f) => f.id === payload.id);
-          const targetIdx = sorted.findIndex((f) => f.id === folder.id);
-          if (draggedIdx === -1 || targetIdx === -1) return;
-
-          const reordered = [...sorted];
-          const [moved] = reordered.splice(draggedIdx, 1);
-          reordered.splice(targetIdx, 0, moved);
-
-          const items = reordered.map((f, i) => ({ id: f.id, position: i }));
-          noteStore.reorderFolders(items);
+      } else {
+        // Same folder — check if dropped on another note (reorder)
+        const noteRow = el.closest('[data-note-id]') as HTMLElement | null;
+        if (noteRow) {
+          const targetNoteId = noteRow.getAttribute('data-note-id');
+          if (targetNoteId && targetNoteId !== noteId) {
+            reorderRef.current(targetFolderId, noteId, targetNoteId);
+          }
         }
       }
-    },
-    [st.folders, handleReorderNotesInFolder]
-  );
+      return;
+    }
+
+    // Not on a folder — check if dropped on a note in the unpinned/root area
+    // (e.g. moving from one folder's expanded list to another)
+    const noteRow = el.closest('[data-note-id]') as HTMLElement | null;
+    if (noteRow) {
+      const targetNoteId = noteRow.getAttribute('data-note-id');
+      if (targetNoteId && targetNoteId !== noteId) {
+        // Find which folder this target note belongs to
+        const target = notesRef.current.find((n) => n.id === targetNoteId);
+        if (target && target.folder_id === sourceFolderId) {
+          reorderRef.current(sourceFolderId!, noteId, targetNoteId);
+        } else if (target && target.folder_id !== sourceFolderId && target.folder_id) {
+          // Move to target note's folder and insert at that position
+          const selectedIds = selectedNoteIdsRef.current;
+          if (selectedIds.size > 0 && selectedIds.has(noteId)) {
+            noteStore.moveNotes(Array.from(selectedIds), target.folder_id);
+            setSelectedNoteIds(new Set());
+          } else {
+            noteStore.moveNote(noteId, target.folder_id);
+          }
+        }
+      }
+    }
+  }, []);
+
+  // Register/unregister global pointer listeners
+  useEffect(() => {
+    document.addEventListener('pointermove', handleGlobalPointerMove);
+    document.addEventListener('pointerup', handleGlobalPointerUp);
+    return () => {
+      document.removeEventListener('pointermove', handleGlobalPointerMove);
+      document.removeEventListener('pointerup', handleGlobalPointerUp);
+      cleanupDrag();
+    };
+  }, [handleGlobalPointerMove, handleGlobalPointerUp]);
 
   const pinnedNotes = st.notes.filter((n) => n.pinned === 1);
 
@@ -349,9 +436,38 @@ export function NoteSidebar() {
                 key={note.id}
                 note={note}
                 isActive={st.activeNoteId === note.id}
-                onClick={() => handleNoteClick(note.slug)}
-                onDragStart={(e) => handleNoteDragStart(e, note)}
-                onDragEnd={handleNoteDragEnd}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (e.shiftKey && lastClickedId) {
+                    // Range select — select all non-pinned notes between last clicked and this one
+                    const allNotes = st.notes.filter((n) => n.pinned !== 1);
+                    const allIds = allNotes.map((n) => n.id);
+                    const lastIdx = allIds.indexOf(lastClickedId);
+                    const currentIdx = allIds.indexOf(note.id);
+                    if (lastIdx !== -1 && currentIdx !== -1) {
+                      const [start, end] = lastIdx < currentIdx ? [lastIdx, currentIdx] : [currentIdx, lastIdx];
+                      const rangeIds = allIds.slice(start, end + 1);
+                      setSelectedNoteIds(new Set(rangeIds));
+                    }
+                  } else if (e.metaKey || e.ctrlKey) {
+                    // Toggle single note
+                    setSelectedNoteIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(note.id)) next.delete(note.id);
+                      else next.add(note.id);
+                      return next;
+                    });
+                  } else {
+                    // Normal click — navigate
+                    if (selectedNoteIds.size <= 1) {
+                      handleNoteClick(note.slug);
+                    }
+                    setSelectedNoteIds(new Set([note.id]));
+                    setLastClickedId(note.id);
+                  }
+                }}
+                isSelected={selectedNoteIds.has(note.id)}
+                onPointerDown={(e) => handleNotePointerDown(e, note)}
               />
             ))}
           </div>
@@ -373,9 +489,7 @@ export function NoteSidebar() {
             .map((folder) => (
               <div key={folder.id}>
                 <div
-                  onDragOver={(e) => handleFolderDragOver(e, folder.id)}
-                  onDragLeave={handleFolderDragLeave}
-                  onDrop={(e) => handleFolderDrop(e, folder)}
+                  data-folder-id={folder.id}
                   className="flex items-center gap-1 px-2 py-1.5 rounded-[var(--radius-sm)] cursor-pointer text-sm group hover:opacity-80 transition-colors"
                   style={{
                     color:
@@ -419,9 +533,6 @@ export function NoteSidebar() {
                     <span className="flex-1 truncate">{folder.name}</span>
                   )}
                   <button
-                    draggable
-                    onDragStart={(e) => handleFolderDragStart(e, folder)}
-                    onDragEnd={handleFolderDragEnd}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleFolderContextMenu(e as any, folder);
@@ -443,9 +554,36 @@ export function NoteSidebar() {
                           key={note.id}
                           note={note}
                           isActive={st.activeNoteId === note.id}
-                          onClick={() => handleNoteClick(note.slug)}
-                          onDragStart={(e) => handleNoteDragStart(e, note)}
-                          onDragEnd={handleNoteDragEnd}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (e.shiftKey && lastClickedId) {
+                              // Range select
+                              const allNotes = st.notes.filter((n) => n.pinned !== 1);
+                              const allIds = allNotes.map((n) => n.id);
+                              const lastIdx = allIds.indexOf(lastClickedId);
+                              const currentIdx = allIds.indexOf(note.id);
+                              if (lastIdx !== -1 && currentIdx !== -1) {
+                                const [start, end] = lastIdx < currentIdx ? [lastIdx, currentIdx] : [currentIdx, lastIdx];
+                                const rangeIds = allIds.slice(start, end + 1);
+                                setSelectedNoteIds(new Set(rangeIds));
+                              }
+                            } else if (e.metaKey || e.ctrlKey) {
+                              setSelectedNoteIds((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(note.id)) next.delete(note.id);
+                                else next.add(note.id);
+                                return next;
+                              });
+                            } else {
+                              if (selectedNoteIds.size <= 1) {
+                                handleNoteClick(note.slug);
+                              }
+                              setSelectedNoteIds(new Set([note.id]));
+                              setLastClickedId(note.id);
+                            }
+                          }}
+                          isSelected={selectedNoteIds.has(note.id)}
+                          onPointerDown={(e) => handleNotePointerDown(e, note)}
                         />
                       ))}
                   </div>
@@ -453,47 +591,7 @@ export function NoteSidebar() {
               </div>
             ))}
 
-          {/* Unfiled notes — notes without a folder */}
-          {(() => {
-            const unfiled = st.notes.filter((n) => !n.folder_id && n.pinned !== 1);
-            if (unfiled.length === 0) return null;
-            return (
-              <div>
-                <div
-                  className="flex items-center gap-1 px-2 py-1.5 rounded-[var(--radius-sm)] text-sm cursor-pointer group transition-colors"
-                  style={{
-                    color: "var(--color-text-secondary)",
-                    opacity: 0.6,
-                  }}
-                  onClick={() => setUnfiledExpanded(!unfiledExpanded)}
-                >
-                  {unfiledExpanded ? (
-                    <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
-                  ) : (
-                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
-                  )}
-                  <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
-                  <span className="flex-1 truncate text-xs font-medium">Unfiled</span>
-                  <span className="text-xs opacity-50">{unfiled.length}</span>
-                </div>
-                {unfiledExpanded && (
-                  <div className="ml-4">
-                    {unfiled.map((note) => (
-                      <NoteItem
-                        key={note.id}
-                        note={note}
-                        isActive={st.activeNoteId === note.id}
-                        onClick={() => handleNoteClick(note.slug)}
-                        onDragStart={(e) => handleNoteDragStart(e, note)}
-                        onDragEnd={handleNoteDragEnd}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
+          </div>
 
         {/* Tags section */}
         {st.tags.length > 0 && (
@@ -550,9 +648,10 @@ export function NoteSidebar() {
       >
         <button
           onClick={async () => {
+            const folderId = activeFolderIdRef.current || st.draftFolderId;
             const note = await noteStore.createNote(
               undefined,
-              activeFolderIdRef.current,
+              folderId,
               undefined
             );
             if (note) {
@@ -649,6 +748,88 @@ export function NoteSidebar() {
           </button>
         </div>
       )}
+
+      {/* ── Batch action bar (shown when multiple notes selected) ── */}
+      {selectedNoteIds.size > 1 && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 border-t-2"
+          style={{
+            backgroundColor: "var(--color-accent-subtle)",
+            borderColor: "var(--color-border-primary)",
+          }}
+        >
+          <span className="text-xs font-semibold" style={{ color: "var(--color-accent-primary)" }}>
+            {selectedNoteIds.size} selected
+          </span>
+          <button
+            onClick={() => setShowMoveDialog(true)}
+            className="px-2 py-1 text-xs font-bold rounded border-2"
+            style={{
+              backgroundColor: "var(--color-bg-secondary)",
+              borderColor: "var(--color-border-primary)",
+              color: "var(--color-text-primary)",
+            }}
+          >
+            Move to folder...
+          </button>
+          <button
+            onClick={() => setSelectedNoteIds(new Set())}
+            className="px-2 py-1 text-xs rounded border"
+            style={{
+              borderColor: "var(--color-border-secondary)",
+              color: "var(--color-text-tertiary)",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* ── Move dialog ── */}
+      {showMoveDialog && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowMoveDialog(false)}
+          />
+          <div
+            className="fixed z-50 w-48 py-1 rounded-[var(--radius-md)] border-2 animate-scaleIn"
+            style={{
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              backgroundColor: "var(--color-bg-primary)",
+              borderColor: "var(--color-border-primary)",
+              boxShadow: "var(--shadow-modal)",
+            }}
+          >
+            <div
+              className="px-3 py-2 text-xs font-semibold border-b-2"
+              style={{ borderColor: "var(--color-border-primary)" }}
+            >
+              Move {selectedNoteIds.size} notes to...
+            </div>
+            <div className="py-1">
+              {st.folders.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={async () => {
+                    await noteStore.moveNotes(Array.from(selectedNoteIds), f.id);
+                    setSelectedNoteIds(new Set());
+                    setShowMoveDialog(false);
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-[var(--color-bg-hover)]"
+                  style={{ color: "var(--color-text-primary)" }}
+                >
+                  <Folder className="w-3.5 h-3.5" />
+                  {f.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </aside>
   );
 }
@@ -659,28 +840,31 @@ function NoteItem({
   note,
   isActive,
   onClick,
-  onDragStart,
-  onDragEnd,
+  onPointerDown,
+  isSelected,
 }: {
   note: Note;
   isActive: boolean;
-  onClick: () => void;
-  onDragStart?: (e: React.DragEvent) => void;
-  onDragEnd?: (e: React.DragEvent) => void;
+  onClick: (e: React.MouseEvent) => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
+  isSelected: boolean;
 }) {
   return (
-    <button
+    <div
       data-note-id={note.id}
-      draggable
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      className="flex items-center gap-2 w-full px-2 py-1.5 rounded-[var(--radius-sm)] text-sm text-left transition-colors group"
+      onPointerDown={onPointerDown}
+      className="flex items-center gap-2 w-full px-2 py-1.5 rounded-[var(--radius-sm)] text-sm text-left transition-colors group cursor-grab active:cursor-grabbing select-none touch-none"
       style={{
+        touchAction: 'none',
         backgroundColor: isActive ? "var(--color-accent-subtle)" : "transparent",
         color: isActive
           ? "var(--color-accent-primary)"
           : "var(--color-text-primary)",
+        outline: isSelected ? "2px solid var(--color-accent-primary)" : undefined,
+        outlineOffset: "-2px",
       }}
       onMouseEnter={(e) => {
         if (!isActive)
@@ -696,6 +880,6 @@ function NoteItem({
       {note.pinned === 1 && (
         <Pin className="w-3 h-3 opacity-40 flex-shrink-0" />
       )}
-    </button>
+    </div>
   );
 }
