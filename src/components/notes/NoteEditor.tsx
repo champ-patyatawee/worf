@@ -669,7 +669,7 @@ Use #tags to categorize your notes."
           >
             {content.trim() ? (
               <div
-                className="prose prose-sm max-w-none py-4 px-6 prose-headings:font-semibold prose-pre:my-0 prose-pre:p-0 prose-pre:bg-transparent prose-a:text-[var(--color-accent-primary)] prose-a:no-underline hover:prose-a:underline prose-code:text-sm prose-code:bg-[var(--color-bg-tertiary)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[var(--radius-sm)]"
+                className="prose prose-sm max-w-none py-4 px-6 prose-headings:font-semibold prose-pre:my-0 prose-pre:p-0 prose-pre:bg-transparent prose-a:text-[var(--color-accent-primary)] prose-a:no-underline hover:prose-a:underline prose-code:text-sm prose-code:bg-[var(--color-bg-tertiary)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[var(--radius-sm)] prose-code:before:content-none prose-code:after:content-none"
                 style={{ color: "var(--color-text-primary)" }}
               >
                 <ReactMarkdown
