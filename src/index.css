@@ -115,6 +115,14 @@
   }
 }
 
+/* ── Prose overrides ── */
+@layer components {
+  .prose code::before,
+  .prose code::after {
+    content: none !important;
+  }
+}
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;

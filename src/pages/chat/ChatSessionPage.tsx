@@ -44,6 +44,11 @@ export function ChatSessionPage() {
     }
   }, []);
 
+  // Expose setter so other components (e.g. Dashboard widget) can clear it
+  (window as any).__setPersistedSessionId = (id: string | null) => {
+    _persistedSessionId = id;
+  };
+
   useEffect(() => {
     if (sessionId) {
       _persistedSessionId = sessionId;
