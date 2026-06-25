@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
-import { X, Plus, Pin, PinOff, Loader2, Trash2 } from "lucide-react";
+import { X, Plus, Pin, PinOff, Loader2, Trash2, Search, ChevronUp, ChevronDown } from "lucide-react";
 import { noteStore, triggerSidebarRefresh } from "./noteStore";
 import { NoteToolbar } from "./NoteToolbar";
 import { BacklinksPanel } from "./BacklinksPanel";
@@ -11,6 +11,14 @@ import { generateSlug, preprocessWikilinks, buildNotesLookup, parseWikilinks } f
 import type { Note, NoteWithRelations, EditorMode, LinkInfo } from "./Types";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
+import mermaid from "mermaid";
+
+// Initialize mermaid once
+mermaid.initialize({
+  startOnLoad: false,
+  theme: "default",
+  securityLevel: "loose",
+});
 
 // Module-level persisted editor mode
 let _persistedMode: EditorMode =
@@ -32,6 +40,13 @@ export function NoteEditor() {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showTagInput, setShowTagInput] = useState(false);
+
+  // ── Search state ──
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentMatch, setCurrentMatch] = useState(0);
+  const [totalMatches, setTotalMatches] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // ── Wikilink autocomplete state ──
   const [wikilinkOpen, setWikilinkOpen] = useState(false);
@@ -268,6 +283,12 @@ export function NoteEditor() {
   // ── Keyboard shortcuts ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+F — open search
+      if ((e.metaKey || e.ctrlKey) && e.key === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      }
       // Cmd+S = save
       if ((e.metaKey || e.ctrlKey) && e.key === "s") {
         e.preventDefault();
@@ -328,6 +349,51 @@ export function NoteEditor() {
     () => buildNotesLookup(st.notes),
     [st.notes]
   );
+
+  // ── Search logic ──
+  const findMatches = useCallback((text: string, query: string): number[] => {
+    if (!query.trim() || !text) return [];
+    const matches: number[] = [];
+    const lower = text.toLowerCase();
+    const q = query.toLowerCase();
+    let idx = lower.indexOf(q);
+    while (idx !== -1) {
+      matches.push(idx);
+      idx = lower.indexOf(q, idx + 1);
+    }
+    return matches;
+  }, []);
+
+  const navigateMatch = useCallback((direction: "next" | "prev") => {
+    const matches = findMatches(content, searchQuery);
+    if (matches.length === 0) return;
+
+    let newIdx = currentMatch + (direction === "next" ? 1 : -1);
+    if (newIdx >= matches.length) newIdx = 0;
+    if (newIdx < 0) newIdx = matches.length - 1;
+
+    setCurrentMatch(newIdx);
+
+    // Select the match in textarea
+    const ta = textareaRef.current;
+    if (ta) {
+      const pos = matches[newIdx];
+      ta.focus();
+      ta.setSelectionRange(pos, pos + searchQuery.length);
+      // Scroll to the match
+      const textBefore = content.substring(0, pos);
+      const lines = textBefore.split("\n").length;
+      const lineHeight = 20; // approximate
+      ta.scrollTop = Math.max(0, (lines - 3) * lineHeight);
+    }
+  }, [content, searchQuery, currentMatch, findMatches]);
+
+  // Update match count when search query changes
+  useEffect(() => {
+    const matches = findMatches(content, searchQuery);
+    setTotalMatches(matches.length);
+    if (currentMatch >= matches.length) setCurrentMatch(0);
+  }, [content, searchQuery, findMatches, currentMatch]);
 
   // ── Preprocess content for preview ──
   const preprocessedContent = useMemo(
@@ -474,6 +540,78 @@ export function NoteEditor() {
         lastSaved={lastSaved}
       />
 
+      {/* ── Search bar ── */}
+      {searchOpen && (
+        <div
+          className="flex items-center gap-2 px-4 py-2 border-b-2"
+          style={{
+            backgroundColor: "var(--color-bg-primary)",
+            borderColor: "var(--color-border-primary)",
+          }}
+        >
+          <Search className="w-3.5 h-3.5" style={{ color: "var(--color-text-tertiary)" }} />
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentMatch(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                navigateMatch(e.shiftKey ? "prev" : "next");
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setSearchOpen(false);
+                setSearchQuery("");
+              }
+            }}
+            placeholder="Search in note..."
+            className="flex-1 bg-transparent outline-none text-sm"
+            style={{ color: "var(--color-text-primary)" }}
+            autoFocus
+          />
+          {searchQuery && (
+            <>
+              <span
+                className="text-xs font-mono min-w-[3rem] text-right"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
+                {totalMatches > 0
+                  ? `${currentMatch + 1}/${totalMatches}`
+                  : "0/0"}
+              </span>
+              <button
+                onClick={() => navigateMatch("prev")}
+                className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--color-bg-hover)] transition-colors"
+                title="Previous match (Shift+Enter)"
+              >
+                <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)" }} />
+              </button>
+              <button
+                onClick={() => navigateMatch("next")}
+                className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--color-bg-hover)] transition-colors"
+                title="Next match (Enter)"
+              >
+                <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)" }} />
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => {
+              setSearchOpen(false);
+              setSearchQuery("");
+            }}
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--color-bg-hover)] transition-colors"
+            title="Close search (Escape)"
+          >
+            <X className="w-3.5 h-3.5" style={{ color: "var(--color-text-secondary)" }} />
+          </button>
+        </div>
+      )}
+
       {/* ── Editor / Preview area ── */}
       <div className="flex-1 flex overflow-hidden">
         {/* Edit pane */}
@@ -537,6 +675,27 @@ Use #tags to categorize your notes."
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
+                    ...(() => {
+                      const makeHeading = (level: number) =>
+                        ({ children, ...props }: any) => {
+                          const text = String(children);
+                          const id = text
+                            .toLowerCase()
+                            .replace(/<[^>]+>/g, "")
+                            .replace(/[^a-z0-9]+/g, "-")
+                            .replace(/^-+|-+$/g, "");
+                          const Tag = `h${level}` as any;
+                          return <Tag id={id} {...props}>{children}</Tag>;
+                        };
+                      return {
+                        h1: makeHeading(1),
+                        h2: makeHeading(2),
+                        h3: makeHeading(3),
+                        h4: makeHeading(4),
+                        h5: makeHeading(5),
+                        h6: makeHeading(6),
+                      };
+                    })(),
                     a: ({ href, children, ...props }) => {
                       if (href?.startsWith("/notes/")) {
                         return (
@@ -545,6 +704,25 @@ Use #tags to categorize your notes."
                             onClick={(e) => {
                               e.preventDefault();
                               navigate(href);
+                            }}
+                            style={{ color: "var(--color-accent-primary)", cursor: "pointer" }}
+                            {...props}
+                          >
+                            {children}
+                          </a>
+                        );
+                      }
+                      if (href?.startsWith("#")) {
+                        return (
+                          <a
+                            href={href}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              const id = href.slice(1);
+                              const el = document.getElementById(id);
+                              if (el) {
+                                el.scrollIntoView({ behavior: "smooth" });
+                              }
                             }}
                             style={{ color: "var(--color-accent-primary)", cursor: "pointer" }}
                             {...props}
@@ -566,6 +744,15 @@ Use #tags to categorize your notes."
                     },
                     code: ({ className, children, ...props }: any) => {
                       const codeString = String(children).replace(/\n$/, "");
+
+                      // ── Mermaid diagram support ──
+                      const match = /language-(\w+)/.exec(className || "");
+                      const language = match ? match[1] : "";
+
+                      if (language === "mermaid") {
+                        return <MermaidDiagram code={codeString} />;
+                      }
+
                       const isInline = !className && !codeString.includes("\n");
 
                       if (isInline) {
@@ -582,10 +769,6 @@ Use #tags to categorize your notes."
                           </code>
                         );
                       }
-
-                      // Block code — extract language from className (e.g., "language-html" → "html")
-                      const match = /language-(\w+)/.exec(className || "");
-                      const language = match ? match[1] : "";
 
                       // Try to highlight
                       let highlighted: string | null = null;
@@ -701,6 +884,70 @@ style={{ color: "var(--color-text-secondary)" }}
 
       
     </div>
+  );
+}
+
+// ── Mermaid Diagram Component ──
+
+function MermaidDiagram({ code }: { code: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const idRef = useRef(`mermaid-${Math.random().toString(36).slice(2, 9)}`);
+  const renderedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    renderedRef.current = false;
+    setLoading(true);
+    setError(null);
+
+    const renderDiagram = async () => {
+      try {
+        const { svg } = await mermaid.render(idRef.current, code);
+        if (!cancelled && containerRef.current) {
+          containerRef.current.innerHTML = svg;
+          renderedRef.current = true;
+          setLoading(false);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error("Mermaid render error:", err);
+          setError(err?.message || err?.toString() || "Render failed");
+          setLoading(false);
+        }
+      }
+    };
+
+    renderDiagram();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
+
+  if (error) {
+    return (
+      <pre
+        className="not-prose overflow-x-auto my-0 py-2 rounded-lg"
+        style={{
+          backgroundColor: "#f0f0f0",
+          color: "var(--color-error)",
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: "13px",
+        }}
+      >
+        <code>Mermaid error: {error}</code>
+      </pre>
+    );
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="not-prose my-4 flex justify-center overflow-x-auto"
+      style={{ minHeight: loading ? "60px" : undefined }}
+    />
   );
 }
 
