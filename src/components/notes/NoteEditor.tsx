@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useNavigate } from "react-router-dom";
 import { X, Plus, Pin, PinOff, Loader2, Trash2 } from "lucide-react";
 import { noteStore, triggerSidebarRefresh } from "./noteStore";
@@ -8,6 +9,8 @@ import { BacklinksPanel } from "./BacklinksPanel";
 import { WikilinkAutocomplete } from "./WikilinkAutocomplete";
 import { generateSlug, preprocessWikilinks, buildNotesLookup, parseWikilinks } from "./noteHelpers";
 import type { Note, NoteWithRelations, EditorMode, LinkInfo } from "./Types";
+import hljs from "highlight.js";
+import "highlight.js/styles/github.css";
 
 // Module-level persisted editor mode
 let _persistedMode: EditorMode =
@@ -334,6 +337,9 @@ export function NoteEditor() {
     [content, notesLookup]
   );
 
+  // DEBUG: inspect raw content for code fence backticks
+  console.log("[preview] content:", JSON.stringify(content.slice(0, 400)));
+
   // ── Render ──
 
   if (!st.activeNote || !st.activeNote.note) {
@@ -525,15 +531,15 @@ Use #tags to categorize your notes."
           <div
             className={`${
               mode === "split" ? "w-1/2" : "flex-1"
-            } overflow-y-auto p-6 scrollbar-thin`}
-            style={{ backgroundColor: "var(--color-bg-secondary)" }}
+            } overflow-y-auto scrollbar-thin`}
           >
             {content.trim() ? (
               <div
-                className="prose prose-sm max-w-none prose-headings:font-semibold prose-a:text-[var(--color-accent-primary)] prose-a:no-underline hover:prose-a:underline prose-code:text-sm prose-code:bg-[var(--color-bg-tertiary)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[var(--radius-sm)] prose-pre:bg-[var(--color-bg-tertiary)] prose-pre:border-2 prose-pre:border-[var(--color-border-primary)]"
+                className="prose prose-sm max-w-none py-4 prose-headings:font-semibold prose-pre:my-0 prose-pre:p-0 prose-pre:bg-transparent prose-a:text-[var(--color-accent-primary)] prose-a:no-underline hover:prose-a:underline prose-code:text-sm prose-code:bg-[var(--color-bg-tertiary)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[var(--radius-sm)]"
                 style={{ color: "var(--color-text-primary)" }}
               >
                 <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
                   components={{
                     a: ({ href, children, ...props }) => {
                       if (href?.startsWith("/notes/")) {
@@ -562,9 +568,10 @@ Use #tags to categorize your notes."
                         </a>
                       );
                     },
-                    // Style code blocks
                     code: ({ className, children, ...props }: any) => {
-                      const isInline = !className;
+                      const codeString = String(children).replace(/\n$/, "");
+                      const isInline = !className && !codeString.includes("\n");
+
                       if (isInline) {
                         return (
                           <code
@@ -579,21 +586,57 @@ Use #tags to categorize your notes."
                           </code>
                         );
                       }
+
+                      // Block code — extract language from className (e.g., "language-html" → "html")
+                      const match = /language-(\w+)/.exec(className || "");
+                      const language = match ? match[1] : "";
+
+                      // Try to highlight
+                      let highlighted: string | null = null;
+                      try {
+                        if (language && hljs.getLanguage(language)) {
+                          highlighted = hljs.highlight(codeString, { language }).value;
+                        }
+                      } catch {}
+
                       return (
                         <pre
-                          className="overflow-x-auto p-4 rounded-lg border"
+                          className="not-prose overflow-x-auto my-0 rounded-lg"
                           style={{
-                            backgroundColor: "var(--color-bg-tertiary)",
-                            borderColor: "var(--color-border-primary)",
+                            backgroundColor: "#f0f0f0",
                           }}
                         >
-                          <code {...props}>{children}</code>
+                          {highlighted ? (
+                            <code
+                              className={className || undefined}
+                              style={{
+                                color: "var(--color-text-primary)",
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: "13px",
+                                lineHeight: "1.6",
+                              }}
+                              dangerouslySetInnerHTML={{ __html: highlighted }}
+                            />
+                          ) : (
+                            <code
+                              className={className || undefined}
+                              style={{
+                                color: "var(--color-text-primary)",
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: "13px",
+                                lineHeight: "1.6",
+                              }}
+                              {...props}
+                            >
+                              {children}
+                            </code>
+                          )}
                         </pre>
                       );
                     },
                   }}
                 >
-                  {preprocessedContent}
+{preprocessedContent}
                 </ReactMarkdown>
               </div>
             ) : (
