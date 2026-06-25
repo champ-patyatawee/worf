@@ -391,20 +391,6 @@ describe("noteStore", () => {
     });
   });
 
-  describe("loadGraphData", () => {
-    it("fetches graph data from backend", async () => {
-      const graphData = {
-        nodes: [{ id: "1", title: "Test", slug: "test", tags: "" }],
-        edges: [{ source: "1", target: "2" }],
-      };
-      vi.mocked(invoke).mockResolvedValue(graphData);
-      const result = await noteStore.loadGraphData();
-      expect(invoke).toHaveBeenCalledWith("get_graph_data");
-      expect(noteStore.state.graphData).toEqual(graphData);
-      expect(result).toEqual(graphData);
-    });
-  });
-
   describe("togglePinNote", () => {
     it("calls toggle_pin_note and updates store", async () => {
       const updated = { ...mockNote, pinned: 1 };

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Note, NoteWithRelations, Folder, SearchResult, GraphData } from "./Types";
+import type { Note, NoteWithRelations, Folder, SearchResult } from "./Types";
 
 // ── Types ──
 
@@ -11,7 +11,6 @@ export interface NoteState {
   activeNote: NoteWithRelations | null;
   loading: boolean;
   searchResults: SearchResult[];
-  graphData: GraphData | null;
   tags: string[];
   sidebarRefreshKey: number;
 }
@@ -29,7 +28,6 @@ let state: NoteState = {
   activeNote: null,
   loading: false,
   searchResults: [],
-  graphData: null,
   tags: [],
   sidebarRefreshKey: 0,
 };
@@ -259,18 +257,6 @@ export const noteStore = {
       state.searchResults = [];
       emit();
       return [];
-    }
-  },
-
-  async loadGraphData() {
-    try {
-      const data = await invoke<GraphData>("get_graph_data");
-      state.graphData = data;
-      emit();
-      return data;
-    } catch (e: any) {
-      console.error("Failed to load graph data:", e);
-      return null;
     }
   },
 

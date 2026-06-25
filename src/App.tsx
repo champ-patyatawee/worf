@@ -6,7 +6,6 @@ import { ChatSessionPage } from "./pages/chat/ChatSessionPage";
 import { Notes } from "./pages/Notes";
 import { SettingsLayout } from "./pages/settings/SettingsLayout";
 import { AIProvider } from "./pages/settings/AIProvider";
-import { NoteSettings } from "./pages/settings/NoteSettings";
 import { PromptTemplates } from "./pages/settings/PromptTemplates";
 import { TerminalSettings } from "./pages/settings/TerminalSettings";
 import { NavigationShortcuts } from "./pages/settings/NavigationShortcuts";
@@ -26,7 +25,6 @@ function App() {
           <Route path="/settings" element={<SettingsLayout />}>
             <Route index element={<Navigate to="/settings/ai" replace />} />
             <Route path="ai" element={<AIProvider />} />
-            <Route path="note" element={<NoteSettings />} />
             <Route path="prompts" element={<PromptTemplates />} />
             <Route path="terminal" element={<TerminalSettings />} />
             <Route path="navigation" element={<NavigationShortcuts />} />

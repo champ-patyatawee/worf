@@ -46,26 +46,6 @@ pub struct LinkInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct GraphData {
-    pub nodes: Vec<GraphNode>,
-    pub edges: Vec<GraphEdge>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GraphNode {
-    pub id: String,
-    pub title: String,
-    pub slug: String,
-    pub tags: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GraphEdge {
-    pub source: String,
-    pub target: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct SearchResult {
     pub id: String,
     pub title: String,
@@ -548,47 +528,6 @@ pub fn reorder_notes(state: State<AppState>, items: Vec<ReorderItem>) -> Result<
             .map_err(|e| e.to_string())?;
     }
     Ok(())
-}
-
-#[tauri::command]
-pub fn get_graph_data(state: State<AppState>) -> Result<GraphData, String> {
-    let db = state.db.lock().map_err(|e| e.to_string())?;
-
-    // All notes → nodes
-    let mut stmt = db
-        .conn
-        .prepare("SELECT id, title, slug, tags FROM notes")
-        .map_err(|e| e.to_string())?;
-    let nodes = stmt
-        .query_map([], |row| {
-            Ok(GraphNode {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                slug: row.get(2)?,
-                tags: row.get(3)?,
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    // All note_links → edges
-    let mut stmt = db
-        .conn
-        .prepare("SELECT source_id, target_id FROM note_links")
-        .map_err(|e| e.to_string())?;
-    let edges = stmt
-        .query_map([], |row| {
-            Ok(GraphEdge {
-                source: row.get(0)?,
-                target: row.get(1)?,
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    Ok(GraphData { nodes, edges })
 }
 
 #[tauri::command]

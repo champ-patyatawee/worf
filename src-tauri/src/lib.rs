@@ -84,7 +84,7 @@ pub fn run() {
             commands::notes::list_notes_in_folder,
             commands::notes::move_note,
             commands::notes::move_notes,
-            commands::notes::get_graph_data,
+            
             commands::notes::get_backlinks,
             commands::notes::search_notes,
             commands::notes::reorder_notes,

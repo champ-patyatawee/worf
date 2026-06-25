@@ -55,23 +55,6 @@ export interface LinkInfo {
   link_text: string;
 }
 
-export interface GraphData {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-export interface GraphNode {
-  id: string;
-  title: string;
-  slug: string;
-  tags: string;
-}
-
-export interface GraphEdge {
-  source: string;
-  target: string;
-}
-
 export interface SearchResult {
   id: string;
   title: string;

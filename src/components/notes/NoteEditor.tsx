@@ -31,8 +31,6 @@ export function NoteEditor() {
   const [tagInput, setTagInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [showGraph, setShowGraph] = useState(false);
-  const [showAI, setShowAI] = useState(false);
   const [showTagInput, setShowTagInput] = useState(false);
 
   // ── Wikilink autocomplete state ──
@@ -472,8 +470,6 @@ export function NoteEditor() {
       <NoteToolbar
         mode={mode}
         onChangeMode={handleChangeMode}
-        onAIClick={() => setShowAI(!showAI)}
-        onGraphClick={() => setShowGraph(!showGraph)}
         saving={saving}
         lastSaved={lastSaved}
       />
@@ -535,7 +531,7 @@ Use #tags to categorize your notes."
           >
             {content.trim() ? (
               <div
-                className="prose prose-sm max-w-none py-4 prose-headings:font-semibold prose-pre:my-0 prose-pre:p-0 prose-pre:bg-transparent prose-a:text-[var(--color-accent-primary)] prose-a:no-underline hover:prose-a:underline prose-code:text-sm prose-code:bg-[var(--color-bg-tertiary)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[var(--radius-sm)]"
+                className="prose prose-sm max-w-none py-4 px-6 prose-headings:font-semibold prose-pre:my-0 prose-pre:p-0 prose-pre:bg-transparent prose-a:text-[var(--color-accent-primary)] prose-a:no-underline hover:prose-a:underline prose-code:text-sm prose-code:bg-[var(--color-bg-tertiary)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded-[var(--radius-sm)]"
                 style={{ color: "var(--color-text-primary)" }}
               >
                 <ReactMarkdown
@@ -601,7 +597,7 @@ Use #tags to categorize your notes."
 
                       return (
                         <pre
-                          className="not-prose overflow-x-auto my-0 rounded-lg"
+                          className="not-prose overflow-x-auto my-0 py-2 rounded-lg"
                           style={{
                             backgroundColor: "#f0f0f0",
                           }}
@@ -703,189 +699,8 @@ style={{ color: "var(--color-text-secondary)" }}
         </div>
       </div>
 
-      {/* ── Graph overlay ── */}
-      {showGraph && (
-        <GraphViewWrapper open={showGraph} onClose={() => setShowGraph(false)} />
-      )}
-
-      {/* ── AI placeholder ── */}
-      {showAI && (
-        <AIPopup
-          content={content}
-          onClose={() => setShowAI(false)}
-          onInsert={(newContent) => {
-            setContent(newContent);
-            contentRef.current = newContent;
-            scheduleSave();
-            setShowAI(false);
-          }}
-        />
-      )}
+      
     </div>
   );
 }
 
-// ── Graph View Wrapper (lazy import compat) ──
-
-import { GraphView } from "./GraphView";
-
-const GraphViewWrapper = GraphView;
-
-// ── AI Popup ──
-
-function AIPopup({
-  content,
-  onClose,
-  onInsert,
-}: {
-  content: string;
-  onClose: () => void;
-  onInsert: (content: string) => void;
-}) {
-  const [prompt, setPrompt] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState("");
-
-  const handleGenerate = async () => {
-    if (!prompt.trim() || loading) return;
-    setLoading(true);
-    // In a real implementation, this would call the AI provider
-    // For now, we'll just set a placeholder
-    setTimeout(() => {
-      setResult(
-        `## AI Generated Content\n\nThis is a placeholder for AI-generated content based on your prompt: "${prompt}"\n\nThe AI integration will be connected when providers are configured.\n\n---\n*Generated for note context*`
-      );
-      setLoading(false);
-    }, 500);
-  };
-
-  const handleInsert = () => {
-    if (result) {
-      onInsert(content + "\n\n" + result);
-    }
-  };
-
-  const handleReplace = () => {
-    if (result) {
-      onInsert(result);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: "var(--color-bg-overlay)" }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg rounded-[var(--radius-lg)] border-2 overflow-hidden animate-scaleIn"
-        style={{
-          backgroundColor: "var(--color-bg-primary)",
-          borderColor: "var(--color-border-primary)",
-          boxShadow: "var(--shadow-modal)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          className="flex items-center justify-between px-4 py-3 border-b-2"
-          style={{ borderColor: "var(--color-border-primary)" }}
-        >
-          <span
-            className="text-sm font-semibold"
-            style={{ color: "var(--color-text-primary)" }}
-          >
-            AI Assistant
-          </span>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-sm)] border-2 hover:bg-[var(--color-bg-hover)] transition-colors"
-            style={{ borderColor: "var(--color-border-primary)" }}
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="p-4 space-y-3">
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Tell AI what to write or how to edit..."
-            className="w-full rounded-[var(--radius-md)] border-2 px-3 py-2 text-sm outline-none resize-none h-20"
-            style={{
-              backgroundColor: "var(--color-bg-secondary)",
-              borderColor: "var(--color-border-primary)",
-              color: "var(--color-text-primary)",
-            }}
-          />
-          <button
-            onClick={handleGenerate}
-            disabled={loading || !prompt.trim()}
-            className="w-full px-4 py-2 text-sm font-semibold rounded-[var(--radius-md)] border-2 btn-brutal transition-all disabled:opacity-50"
-            style={{
-              backgroundColor: loading
-                ? "var(--color-bg-tertiary)"
-                : "var(--color-accent-primary)",
-              color: loading
-                ? "var(--color-text-tertiary)"
-                : "#FFFFFF",
-              borderColor: "var(--color-border-primary)",
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Generating...
-              </span>
-            ) : (
-              "Generate"
-            )}
-          </button>
-
-          {result && (
-            <div
-              className="p-3 rounded-[var(--radius-md)] border-2 text-sm max-h-48 overflow-y-auto"
-              style={{
-                backgroundColor: "var(--color-bg-tertiary)",
-                borderColor: "var(--color-border-primary)",
-                color: "var(--color-text-primary)",
-              }}
-            >
-              <div className="prose prose-sm prose-headings:text-sm max-w-none">
-                {result}
-              </div>
-            </div>
-          )}
-
-          {result && (
-            <div className="flex gap-2">
-              <button
-                onClick={handleInsert}
-                className="flex-1 px-3 py-2 text-sm font-semibold rounded-[var(--radius-md)] border-2 btn-brutal transition-all"
-                style={{
-                  backgroundColor: "var(--color-bg-secondary)",
-                  borderColor: "var(--color-border-primary)",
-                  color: "var(--color-text-primary)",
-                  boxShadow: "var(--shadow-sm)",
-                }}
-              >
-                Insert at cursor
-              </button>
-              <button
-                onClick={handleReplace}
-                className="flex-1 px-3 py-2 text-sm font-semibold rounded-[var(--radius-md)] border-2 btn-brutal transition-all"
-                style={{
-                  backgroundColor: "var(--color-accent-primary)",
-                  color: "#FFFFFF",
-                  borderColor: "var(--color-border-primary)",
-                  boxShadow: "var(--shadow-sm)",
-                }}
-              >
-                Replace all
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}

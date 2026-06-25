@@ -1,11 +1,9 @@
-import { Edit3, Eye, Columns, Sparkles, Share2 } from "lucide-react";
+import { Edit3, Eye, Columns } from "lucide-react";
 import type { EditorMode } from "./Types";
 
 interface NoteToolbarProps {
   mode: EditorMode;
   onChangeMode: (mode: EditorMode) => void;
-  onAIClick: () => void;
-  onGraphClick: () => void;
   saving: boolean;
   lastSaved: Date | null;
 }
@@ -13,8 +11,6 @@ interface NoteToolbarProps {
 export function NoteToolbar({
   mode,
   onChangeMode,
-  onAIClick,
-  onGraphClick,
   saving,
   lastSaved,
 }: NoteToolbarProps) {
@@ -82,49 +78,7 @@ export function NoteToolbar({
           </span>
         )}
 
-        <div className="w-px h-4 mx-1" style={{ backgroundColor: "var(--color-border-secondary)" }} />
-
-        {/* AI button */}
-        <button
-          onClick={onAIClick}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-[var(--radius-sm)] transition-all border-2"
-          style={{
-            backgroundColor: "transparent",
-            color: "var(--color-text-tertiary)",
-            borderColor: "transparent",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--color-bg-hover)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent";
-          }}
-          title="AI Assistant"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          AI
-        </button>
-
-        {/* Graph button */}
-        <button
-          onClick={onGraphClick}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-[var(--radius-sm)] transition-all border-2"
-          style={{
-            backgroundColor: "transparent",
-            color: "var(--color-text-tertiary)",
-            borderColor: "transparent",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "var(--color-bg-hover)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent";
-          }}
-          title="Graph View"
-        >
-          <Share2 className="w-3.5 h-3.5" />
-          Graph
-        </button>
+        
       </div>
     </div>
   );

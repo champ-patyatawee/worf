@@ -1,6 +1,6 @@
 ---
 name: notes
-description: Obsidian-like linked Markdown notes system — wikilinks, graph view, backlinks, quick switcher, AI generation, folders, tags, and pinning
+description: Obsidian-like linked Markdown notes system — wikilinks, backlinks, quick switcher, folders, tags, and pinning
 license: MIT
 compatibility: opencode
 metadata:
@@ -12,13 +12,12 @@ metadata:
 - Create or modify frontend components in `src/components/notes/`
 - Create or modify Rust backend commands in `src-tauri/src/commands/notes.rs` and `src-tauri/src/commands/folders.rs`
 - Manage the database schema (`notes`, `note_links`, `folders` tables in `002_notes.sql` and `003_folders_position.sql`)
-- Wire up wikilink parsing, resolution, and graph traversal
-- Implement AI generate/edit/complete for Markdown content (placeholder UI)
+- Wire up wikilink parsing and resolution
 - Maintain drag-and-drop reordering (folders and notes via the `⋮` drag handle), pinning, tags, folder organization, and multi-folder simultaneous expand
 - Implement and maintain **multi-select** (Shift+click range select, Cmd/Ctrl+click toggle) and **batch move** (move multiple selected notes to a folder via action bar button, dialog, or drag)
 
 ## When to use me
-Use when working on the Notes module — adding note-taking features, wiring up wikilinks, building the graph view, implementing the quick switcher, adding folder/tag organization, pin/favorite support, AI generation for Markdown, drag-and-drop reordering, or improving the note editor. Invoke this skill whenever files under `src/components/notes/`, `src-tauri/src/commands/notes.rs`, `src-tauri/src/commands/folders.rs`, `src-tauri/migrations/002_notes.sql`, `src-tauri/migrations/003_folders_position.sql`, or the `notes`, `note_links`, and `folders` database tables are involved.
+Use when working on the Notes module — adding note-taking features, wiring up wikilinks, implementing the quick switcher, adding folder/tag organization, pin/favorite support, drag-and-drop reordering, or improving the note editor. Invoke this skill whenever files under `src/components/notes/`, `src-tauri/src/commands/notes.rs`, `src-tauri/src/commands/folders.rs`, `src-tauri/migrations/002_notes.sql`, `src-tauri/migrations/003_folders_position.sql`, or the `notes`, `note_links`, and `folders` database tables are involved.
 
 ## Architecture
 
@@ -42,16 +41,15 @@ The notes system is **fully built** and integrated. What exists:
 ```
 src/
 ├── components/notes/                # Frontend
-│   ├── NoteEditor.tsx               # Markdown editor with Edit/Preview/Split, wikilink autocomplete, AI popup (placeholder), auto-save, pin/tags/backlinks
+│   ├── NoteEditor.tsx               # Markdown editor with Edit/Preview/Split, wikilink autocomplete, auto-save, pin/tags/backlinks
 │   ├── NoteSidebar.tsx              # Folder tree + note list + pinned section + tags + search bar + drag-and-drop reorder (notes+f older)
-│   ├── NoteToolbar.tsx              # Editor mode tabs (Edit/Preview/Split) + AI + Graph buttons + save status
+│   ├── NoteToolbar.tsx              # Editor mode tabs (Edit/Preview/Split) + save status
 │   ├── QuickSwitcher.tsx            # Cmd+P fuzzy search across all notes
-│   ├── GraphView.tsx                # Canvas-based force-directed graph (no D3) — nodes, edges, zoom/pan/drag
 │   ├── BacklinksPanel.tsx           # Shows which notes link to the current note
 │   ├── WikilinkAutocomplete.tsx     # Dropdown for [[wikilink]] autocomplete
-│   ├── noteStore.ts                 # Pub/sub state store (notes, folders, tags, graph, search)
+│   ├── noteStore.ts                 # Pub/sub state store (notes, folders, tags, search)
 │   ├── noteHelpers.ts               # parseWikilinks(), generateSlug(), countWords(), preprocessWikilinks(), buildNotesLookup()
-│   └── Types.ts                     # Note, Folder, NoteWithRelations, LinkInfo, GraphData, SearchResult, EditorMode
+│   └── Types.ts                     # Note, Folder, NoteWithRelations, LinkInfo, SearchResult, EditorMode
 │
 ├── pages/
 │   └── Notes.tsx                    # Notes page route — sidebar + editor + quick switcher layout
@@ -136,20 +134,8 @@ Main Markdown editor (840 lines) — the most complex component:
 - **Wikilink rendering** — `[[target]]` and `[[target|display]]` are parsed and rendered as clickable links in preview mode
 - **Wikilink autocomplete** — typing `[[` triggers a popup (WikilinkAutocomplete) filtering by title, with keyboard navigation
 - **Backlinks panel** — collapsible section at the bottom showing notes that link to the current note
-- **AI popup (placeholder)** — a modal with "Generate", "Continue", "Improve" buttons wired to a `showAI` state. The actual AI integration calls are stubs — ready to wire to `aiService.ts`.
-- **Graph toggle** — opens GraphView modal
 - **Quick switcher** — Cmd+P trigger dispatched to window event
 - **Sidebar refresh** — calls `triggerSidebarRefresh()` after saves to keep the sidebar in sync
-
-### `GraphView.tsx`
-Canvas-based force-directed graph (399 lines, no D3):
-
-- **Force simulation** — custom implementation with repulsion (Coulomb's law), attraction (spring force), centering, and velocity damping
-- **Nodes** — circles rendered on Canvas, sized by link count
-- **Edges** — lines between connected nodes
-- **Interaction** — click-drag nodes, click node navigates to note, zoom in/out buttons, reset zoom
-- **Modal overlay** — full-screen with close button
-- **Animation** — `requestAnimationFrame` loop, ~120 iterations of force simulation
 
 ### `QuickSwitcher.tsx`
 Cmd+P fuzzy search modal:
@@ -199,7 +185,6 @@ let state: NoteState = {
   activeNote: null,       // NoteWithRelations | null
   loading: false,
   searchResults: [],
-  graphData: null,
   tags: [],
   sidebarRefreshKey: 0,  // Incremented to trigger sidebar re-render
 };
@@ -222,7 +207,6 @@ export const noteStore = {
   moveNote,
   moveNotes,
   searchNotes,
-  loadGraphData,
   togglePinNote,
   createFolder,
   renameFolder,
@@ -333,12 +317,9 @@ When user types `[[` in the textarea:
 3. Shows popover with matching note titles (up to 10)
 4. On selection, inserts `[[selected title]]` or `[[slug|display text]]`
 
-### Graph Data (`get_graph_data` in Rust)
-Returns all notes as nodes and all `note_links` as edges. Used by `GraphView.tsx`.
-
 ## Backend Commands Reference
 
-### Notes Commands (13 commands in `notes.rs`)
+### Notes Commands (12 commands in `notes.rs`)
 
 | Command | Signature | Description |
 |---|---|---|
@@ -352,7 +333,6 @@ Returns all notes as nodes and all `note_links` as edges. Used by `GraphView.tsx
 | `move_note` | `(id: String, folder_id: Option<String>) -> Result<Note, String>` | Moves a single note to folder (or unassigns). Assigns next available position in destination |
 | `move_notes` | `(ids: Vec<String>, folder_id: Option<String>) -> Result<(), String>` | Batch-moves multiple notes to a folder. Calculates `COALESCE(MAX(position), -1) + 1` as base position, then assigns sequential positions (`base_pos + i`) to each note. Does NOT return individual notes — the frontend refreshes via `triggerSidebarRefresh()` |
 | `reorder_notes` | `(items: Vec<ReorderItem>) -> Result<(), String>` | Batch-updates positions for a list of notes |
-| `get_graph_data` | `() -> Result<GraphData, String>` | Returns all notes as nodes + all `note_links` as edges |
 | `get_backlinks` | `(note_id: String) -> Result<Vec<LinkInfo>, String>` | Returns all notes linking TO the given note |
 | `search_notes` | `(query: String) -> Result<Vec<SearchResult>, String>` | LIKE search on title + content, limited to 20 results |
 | `toggle_pin_note` | `(id: String) -> Result<Note, String>` | Toggles `pinned` between 0 and 1 |
@@ -540,23 +520,6 @@ export interface LinkInfo {
   link_text: string;
 }
 
-export interface GraphData {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-export interface GraphNode {
-  id: string;
-  title: string;
-  slug: string;
-  tags: string;
-}
-
-export interface GraphEdge {
-  source: string;
-  target: string;
-}
-
 export interface SearchResult {
   id: string;
   title: string;
@@ -616,26 +579,6 @@ pub struct LinkInfo {
     pub note_title: String,
     pub note_slug: String,
     pub link_text: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GraphData {
-    pub nodes: Vec<GraphNode>,
-    pub edges: Vec<GraphEdge>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GraphNode {
-    pub id: String,
-    pub title: String,
-    pub slug: String,
-    pub tags: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GraphEdge {
-    pub source: String,
-    pub target: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -753,43 +696,39 @@ await invoke('move_notes', {
 
 17. **`activeFolderIdRef` pattern**: Because `NoteSidebar`'s refresh effect depends on `sidebarRefreshKey` (not the state itself), a ref is used to avoid stale closures. The ref is kept in sync with the state in `handleFolderClick`.
 
-18. **Graph view is Canvas-based (no D3)**: The force-directed layout is implemented with raw Canvas API and `requestAnimationFrame`. Forces: repulsion between all nodes, attraction along edges, centering force, and velocity damping.
+18. **All IDs are UUIDs**: Generated server-side with `uuid::Uuid::new_v4()` in Rust commands. The frontend does not generate IDs.
 
-19. **AI popup is placeholder UI**: The `showAI` state and modal are wired in `NoteEditor.tsx` with buttons for "Generate", "Continue", "Improve" but the actual AI integration is not implemented — ready to wire to `aiService.ts`.
+19. **`list_notes` with no filters loads ALL notes**: For performance on large datasets, consider adding pagination. Currently `loadAllNotes()` calls `list_notes` without filters and loads every note into memory.
 
-20. **All IDs are UUIDs**: Generated server-side with `uuid::Uuid::new_v4()` in Rust commands. The frontend does not generate IDs.
+20. **The `pages` table from `001_init.sql` is legacy**: Do NOT use it for new code. The old TipTap-based system used it, but it's been abandoned.
 
-21. **`list_notes` with no filters loads ALL notes**: For performance on large datasets, consider adding pagination. Currently `loadAllNotes()` calls `list_notes` without filters and loads every note into memory.
+21. **`activeFolderIdRef` vs `activeFolderId` (ref vs state)**: `activeFolderIdRef` is a `useRef<string | null>` used for synchronous reads inside effects and event handlers (e.g., "New Note" button, sidebar refresh effect). `activeFolderId` is React state used for reactive rendering (visual highlight). The ref is kept in sync with the state in `handleFolderClick`. **Always use the ref, not the state, when you need to read the active folder inside a callback or effect** — React state batching can cause stale reads.
 
-22. **The `pages` table from `001_init.sql` is legacy**: Do NOT use it for new code. The old TipTap-based system used it, but it's been abandoned.
+22. **`loadAllNotes()` keeps everything in memory**: When expanding a folder, `loadAllNotes()` is called instead of `loadNotesInFolder()`. This means ALL notes are loaded into `noteStore.state.notes`. Expand/collapse is purely a visual filter. Multiple folders can be expanded at once because the data is already available. The tradeoff is memory — for very large datasets, this may need optimization.
 
-23. **`activeFolderIdRef` vs `activeFolderId` (ref vs state)**: `activeFolderIdRef` is a `useRef<string | null>` used for synchronous reads inside effects and event handlers (e.g., "New Note" button, sidebar refresh effect). `activeFolderId` is React state used for reactive rendering (visual highlight). The ref is kept in sync with the state in `handleFolderClick`. **Always use the ref, not the state, when you need to read the active folder inside a callback or effect** — React state batching can cause stale reads.
+23. **Collapsing a folder is purely a local UI toggle**: When you collapse a folder, no data-loading call is made. The folder is just removed from the `expandedFolders` set and `activeFolderIdRef` is cleared. All notes remain in memory. This is intentional — it allows instant expand/collapse and preserves multi-folder expand state.
 
-24. **`loadAllNotes()` keeps everything in memory**: When expanding a folder, `loadAllNotes()` is called instead of `loadNotesInFolder()`. This means ALL notes are loaded into `noteStore.state.notes`. Expand/collapse is purely a visual filter. Multiple folders can be expanded at once because the data is already available. The tradeoff is memory — for very large datasets, this may need optimization.
+24. **Folder drag handle is the `⋮` button only**: Folders have `draggable` set on only the `MoreHorizontal` (⋮) button, not the entire row. This prevents interference with the `onClick` handler (which expands/collapses the folder). Notes, by contrast, are always `draggable` on the entire row because they have no click handler.
 
-25. **Collapsing a folder is purely a local UI toggle**: When you collapse a folder, no data-loading call is made. The folder is just removed from the `expandedFolders` set and `activeFolderIdRef` is cleared. All notes remain in memory. This is intentional — it allows instant expand/collapse and preserves multi-folder expand state.
+25. **`draggedItemRef` pattern for reliable drag state**: The `NoteSidebar` maintains a `useRef<DragPayload | null>` called `draggedItemRef`. This is set on `dragStart` and cleared on `dragEnd`. Drop handlers read from this ref rather than parsing `e.dataTransfer.getData()`, which can be unreliable across browser tab boundaries and drag events. Always set `draggedItemRef.current` in `onDragStart` and clear it in `onDragEnd`.
 
-26. **Folder drag handle is the `⋮` button only**: Folders have `draggable` set on only the `MoreHorizontal` (⋮) button, not the entire row. This prevents interference with the `onClick` handler (which expands/collapses the folder). Notes, by contrast, are always `draggable` on the entire row because they have no click handler.
+26. **`expandedFolders` is a `Set<string>` in React state**: Because `Set` is mutable, always create a new `Set` when updating: `setExpandedFolders(prev => { const next = new Set(prev); next.add(folderId); return next; })`. This ensures React detects the state change.
 
-27. **`draggedItemRef` pattern for reliable drag state**: The `NoteSidebar` maintains a `useRef<DragPayload | null>` called `draggedItemRef`. This is set on `dragStart` and cleared on `dragEnd`. Drop handlers read from this ref rather than parsing `e.dataTransfer.getData()`, which can be unreliable across browser tab boundaries and drag events. Always set `draggedItemRef.current` in `onDragStart` and clear it in `onDragEnd`.
+27. **Unfiled pseudo-folder has its own expand state**: The `unfiledExpanded` state is a simple `boolean` (not part of `expandedFolders`). Clicking the Unfiled header toggles this boolean. It does NOT interact with `activeFolderId`, `activeFolderIdRef`, or any data-loading function.
 
-28. **`expandedFolders` is a `Set<string>` in React state**: Because `Set` is mutable, always create a new `Set` when updating: `setExpandedFolders(prev => { const next = new Set(prev); next.add(folderId); return next; })`. This ensures React detects the state change.
+28. **Delete note button is in the editor status bar**: The `Trash2` icon is in the bottom status bar of `NoteEditor.tsx`, next to the pin and creation-date elements. It calls `handleDelete()` which shows a `confirm()` dialog, then calls `noteStore.deleteNote()` and navigates away to `/notes`.
 
-29. **Unfiled pseudo-folder has its own expand state**: The `unfiledExpanded` state is a simple `boolean` (not part of `expandedFolders`). Clicking the Unfiled header toggles this boolean. It does NOT interact with `activeFolderId`, `activeFolderIdRef`, or any data-loading function.
+29. **Shift+click range selection is computed from the visible rendered note list**: When the user Shift+clicks, the range is determined by the order of `NoteItem` elements currently in the DOM for the active folder (`document.querySelectorAll('[data-note-id]')`). The "anchor" note (the last note that was clicked without Shift) is tracked in a `rangeAnchorRef`. If no anchor is set and the user Shift+clicks, only the clicked note is selected.
 
-30. **Delete note button is in the editor status bar**: The `Trash2` icon is in the bottom status bar of `NoteEditor.tsx`, next to the pin and creation-date elements. It calls `handleDelete()` which shows a `confirm()` dialog, then calls `noteStore.deleteNote()` and navigates away to `/notes`.
+30. **Multi-select clears on sidebar refresh**: When `sidebarRefreshKey` changes and notes are re-fetched, `selectedNoteIds` is cleared. This prevents stale IDs from persisting after notes have been moved, deleted, or renamed. Selection also clears when the active folder changes.
 
-31. **Shift+click range selection is computed from the visible rendered note list**: When the user Shift+clicks, the range is determined by the order of `NoteItem` elements currently in the DOM for the active folder (`document.querySelectorAll('[data-note-id]')`). The "anchor" note (the last note that was clicked without Shift) is tracked in a `rangeAnchorRef`. If no anchor is set and the user Shift+clicks, only the clicked note is selected.
+31. **Bottom action bar has two display modes**: The bar conditionally renders either the default ("New Note" + "New Folder") or multi-select mode ("X selected" count + "Move to folder..." button). When `selectedNoteIds.size > 0`, the default buttons are hidden. The multi-select buttons are hidden when `selectedNoteIds.size === 0`.
 
-32. **Multi-select clears on sidebar refresh**: When `sidebarRefreshKey` changes and notes are re-fetched, `selectedNoteIds` is cleared. This prevents stale IDs from persisting after notes have been moved, deleted, or renamed. Selection also clears when the active folder changes.
+32. **Drag-to-move uses `selectedNoteIds` not individual selection**: If the user has selected 3 notes and drags one of them, ALL 3 notes are moved. This is checked in the drop handler: if `selectedNoteIds.has(draggedNoteId)`, batch-move all selected notes; if not, move only the dragged note. This means dragging an unselected note while other notes are selected moves ONLY the dragged note.
 
-33. **Bottom action bar has two display modes**: The bar conditionally renders either the default ("New Note" + "New Folder") or multi-select mode ("X selected" count + "Move to folder..." button). When `selectedNoteIds.size > 0`, the default buttons are hidden. The multi-select buttons are hidden when `selectedNoteIds.size === 0`.
+33. **`move_notes` does NOT return individual Note objects**: Unlike `move_note` (which returns the updated `Note`), `move_notes` returns `Result<()>`. The frontend must rely on `triggerSidebarRefresh()` to re-fetch the full note list after a batch move. This is intentional — returning many Note objects could be wasteful for large batches.
 
-34. **Drag-to-move uses `selectedNoteIds` not individual selection**: If the user has selected 3 notes and drags one of them, ALL 3 notes are moved. This is checked in the drop handler: if `selectedNoteIds.has(draggedNoteId)`, batch-move all selected notes; if not, move only the dragged note. This means dragging an unselected note while other notes are selected moves ONLY the dragged note.
-
-35. **`move_notes` does NOT return individual Note objects**: Unlike `move_note` (which returns the updated `Note`), `move_notes` returns `Result<()>`. The frontend must rely on `triggerSidebarRefresh()` to re-fetch the full note list after a batch move. This is intentional — returning many Note objects could be wasteful for large batches.
-
-36. **Folder dialog is a simple overlay, not a command palette**: The "Move to folder..." dialog renders a list of all folders (from `noteStore.state.folders`) plus an "Unfiled" option (represented as `folderId: null`). It does NOT support search/filtering. Each folder row shows its name and has an accent-colored hover effect. Clicking the row triggers the move and closes the dialog.
+34. **Folder dialog is a simple overlay, not a command palette**: The "Move to folder..." dialog renders a list of all folders (from `noteStore.state.folders`) plus an "Unfiled" option (represented as `folderId: null`). It does NOT support search/filtering. Each folder row shows its name and has an accent-colored hover effect. Clicking the row triggers the move and closes the dialog.
 
 ## Design Patterns
 
