@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import type { Board, Objective, ObjectiveWithKRs } from '../../types';
-import { Plus, Trash2, FolderKanban, X, Columns3 } from 'lucide-react';
+import { Plus, Trash2, Timer, X } from 'lucide-react';
 
-export function KanbanSidebar() {
+export function SprintSidebar() {
   const location = useLocation();
   const [boards, setBoards] = useState<Board[]>([]);
   const [boardObjectives, setBoardObjectives] = useState<Record<string, string>>({});
@@ -50,7 +50,7 @@ export function KanbanSidebar() {
     const name = newBoardName.trim();
     if (!name) return;
     try {
-      await invoke('create_board', { name, description: null, boardType: 'kanban' });
+      await invoke('create_board', { name, description: null, boardType: 'sprint' });
       setShowDialog(false);
       await loadBoards();
     } catch (err) {
@@ -68,8 +68,10 @@ export function KanbanSidebar() {
     }
   };
 
-  const currentBoardSlug = location.pathname.startsWith('/kanban/')
+  const currentBoardSlug = location.pathname.startsWith('/projects/')
     ? location.pathname.split('/')[2] : null;
+
+  const sprintBoards = boards.filter(b => b.board_type === 'sprint');
 
   return (
     <aside className="w-[260px] h-full flex flex-col flex-shrink-0 border-r-2"
@@ -79,9 +81,9 @@ export function KanbanSidebar() {
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-[var(--radius-md)] border-2 flex items-center justify-center"
               style={{ borderColor: 'var(--color-border-primary)', backgroundColor: 'var(--color-accent-primary)' }}>
-              <FolderKanban className="h-4 w-4 text-white" />
+              <Timer className="h-4 w-4 text-white" />
             </div>
-            <span className="font-extrabold text-lg tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Projects</span>
+            <span className="font-extrabold text-lg tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Sprints</span>
           </div>
           <button onClick={() => setShowDialog(true)}
             className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] border-2 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none"
@@ -92,15 +94,15 @@ export function KanbanSidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3">
-        {boards.filter(b => b.board_type === 'kanban').map((board) => {
+        {sprintBoards.map((board) => {
           const isActive = currentBoardSlug === board.slug;
           return (
-            <Link key={board.id} to={`/kanban/${board.slug}`} onClick={() => { (window as any).__setPersistedBoardSlug?.(board.slug); }}
+            <Link key={board.id} to={`/projects/${board.slug}`} onClick={() => { (window as any).__setPersistedSprintSlug?.(board.slug); }}
               className="flex items-center group rounded-[var(--radius-md)] px-2 py-2 mb-1 transition-colors"
               style={{ backgroundColor: isActive ? 'var(--color-accent-subtle)' : 'transparent', borderLeft: isActive ? '3px solid var(--color-accent-primary)' : '3px solid transparent' }}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <Columns3 className="h-3.5 w-3.5" />
+                  <Timer className="h-3.5 w-3.5" />
                   <span className="text-sm truncate font-medium block"
                     style={{ color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-primary)', opacity: isActive ? 1 : 0.7 }}>
                     {board.name}
@@ -120,9 +122,9 @@ export function KanbanSidebar() {
             </Link>
           );
         })}
-        {boards.length === 0 && (
+        {sprintBoards.length === 0 && (
           <div className="text-sm px-2 py-2 text-center font-medium" style={{ color: 'var(--color-text-secondary)', opacity: 0.5 }}>
-            No projects yet. Create one!
+            No sprint projects yet. Create one!
           </div>
         )}
       </div>
@@ -135,14 +137,14 @@ export function KanbanSidebar() {
             style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-border-primary)', boxShadow: 'var(--shadow-modal)' }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-extrabold" style={{ color: 'var(--color-text-primary)' }}>New Project</h2>
+              <h2 className="text-sm font-extrabold" style={{ color: 'var(--color-text-primary)' }}>New Sprint Project</h2>
               <button onClick={() => setShowDialog(false)} className="p-1 rounded hover:bg-[var(--color-bg-hover)]">
                 <X className="h-4 w-4" style={{ color: 'var(--color-text-tertiary)' }} />
               </button>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); handleCreateBoard(); }} className="space-y-3">
               <input ref={inputRef} type="text" value={newBoardName} onChange={(e) => setNewBoardName(e.target.value)}
-                placeholder="Project name..." autoFocus
+                placeholder="Sprint project name..." autoFocus
                 className="w-full px-3 py-2 text-sm border-2 rounded-[var(--radius-md)] outline-none"
                 style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-primary)', color: 'var(--color-text-primary)' }} />
 

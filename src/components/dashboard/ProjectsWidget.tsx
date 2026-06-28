@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useNavigate } from 'react-router-dom';
-import { FolderKanban } from 'lucide-react';
+import { FolderKanban, Timer, Columns3 } from 'lucide-react';
+import type { Board } from '../../types';
 
-interface BoardSummary { id: string; name: string; slug: string; taskCount: number; }
+interface BoardSummary { id: string; name: string; slug: string; board_type: string; taskCount: number; }
 
 export function ProjectsWidget() {
   const [boards, setBoards] = useState<BoardSummary[]>([]);
@@ -14,13 +15,13 @@ export function ProjectsWidget() {
     let cancelled = false;
     const fetchData = async () => {
       try {
-        const data: any[] = await invoke('list_boards');
+        const data: Board[] = await invoke('list_boards');
         const summaries: BoardSummary[] = await Promise.all(
           data.map(async (b) => {
             try {
               const full = await invoke<any>('get_board', { idOrSlug: b.id });
-              return { id: b.id, name: b.name, slug: b.slug, taskCount: (full.tasks || []).length };
-            } catch { return { id: b.id, name: b.name, slug: b.slug, taskCount: 0 }; }
+              return { id: b.id, name: b.name, slug: b.slug, board_type: b.board_type, taskCount: (full.tasks || []).length };
+            } catch { return { id: b.id, name: b.name, slug: b.slug, board_type: b.board_type, taskCount: 0 }; }
           })
         );
         if (!cancelled) setBoards(summaries);
@@ -30,6 +31,14 @@ export function ProjectsWidget() {
     fetchData();
     return () => { cancelled = true; };
   }, []);
+
+  const handleNavigate = (board: BoardSummary) => {
+    if (board.board_type === 'sprint') {
+      navigate(`/projects/${board.slug}`);
+    } else {
+      navigate(`/kanban/${board.slug}`);
+    }
+  };
 
   return (
     <div className="min-h-full p-4 flex flex-col" style={{ backgroundColor: '#FEF08A' }}>
@@ -49,10 +58,13 @@ export function ProjectsWidget() {
           </div>
           <div className="space-y-1.5 flex-1 overflow-y-auto">
             {boards.slice(0, 5).map(b => (
-              <button key={b.id} onClick={() => navigate(`/kanban/${b.slug}`)}
+              <button key={b.id} onClick={() => handleNavigate(b)}
                 className="w-full flex items-center justify-between px-3 py-2 rounded-[8px] border-2 border-[#0D0D0D] bg-white/70 hover:bg-white transition-all text-left shadow-[2px_2px_0px_#0D0D0D] hover:translate-x-[-1px] hover:translate-y-[-1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#0D0D0D]">
-                <span className="text-[13px] font-bold text-[var(--color-text-primary)] truncate">{b.name}</span>
-                <span className="text-[11px] font-mono font-bold text-[var(--color-text-secondary)]">{b.taskCount}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {b.board_type === 'sprint' ? <Timer className="h-3 w-3" /> : <Columns3 className="h-3 w-3" />}
+                  <span className="text-[13px] font-bold text-[var(--color-text-primary)] truncate">{b.name}</span>
+                </div>
+                <span className="text-[11px] font-mono font-bold text-[var(--color-text-secondary)] flex-shrink-0 ml-2">{b.taskCount}</span>
               </button>
             ))}
           </div>

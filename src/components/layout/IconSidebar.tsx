@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutDashboard, Columns3, Bot, StickyNote, Terminal, Settings } from "lucide-react";
+import { LayoutDashboard, Columns3, Bot, StickyNote, Target, Timer, Terminal, Settings } from "lucide-react";
 import { terminalStore } from "../../stores/terminalStore";
 
 const tabs = [
   { id: "dashboard", icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { id: "notes", icon: StickyNote, label: "Notes", path: "/notes" },
   { id: "kanban", icon: Columns3, label: "Kanban", path: "/kanban" },
+  { id: "sprints", icon: Timer, label: "Sprints", path: "/projects" },
+  { id: "okr", icon: Target, label: "OKRs", path: "/okr" },
   { id: "ai-chat", icon: Bot, label: "AI Chat", path: "/ai-chat" },
 ];
 
@@ -26,6 +28,8 @@ export function IconSidebar() {
     if (path === "/") return "dashboard";
     if (path.startsWith("/notes")) return "notes";
     if (path.startsWith("/kanban")) return "kanban";
+    if (path.startsWith("/projects")) return "sprints";
+    if (path.startsWith("/okr")) return "okr";
     if (path.startsWith("/ai-chat")) return "ai-chat";
     if (path.startsWith("/settings")) return "settings";
     return "dashboard";

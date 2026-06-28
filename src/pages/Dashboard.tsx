@@ -9,6 +9,7 @@ import {
   TaskOverviewWidget,
   ProjectsWidget,
   ChatTopicsWidget,
+  OKRWidget,
 } from '../components/dashboard';
 
 const LAYOUT_KEY = 'dashboard-layout';
@@ -27,8 +28,9 @@ interface WidgetMeta {
 
 const ALL_WIDGETS: WidgetMeta[] = [
   { id: 'pomodoro', name: 'Pomodoro', component: <PomodoroWidget />, defaultRect: { x: 0, y: 2, w: 662, h: 178 } },
-  { id: 'calendar', name: 'Calendar', component: <CalendarWidget />, defaultRect: { x: 0, y: 197, w: 344, h: 274 } },
-  { id: 'clock', name: 'Clock', component: <ClockWidget />, defaultRect: { x: 369, y: 203, w: 292, h: 257 } },
+  { id: 'okr', name: 'OKRs', component: <OKRWidget />, defaultRect: { x: 0, y: 197, w: 344, h: 274 } },
+  { id: 'calendar', name: 'Calendar', component: <CalendarWidget />, defaultRect: { x: 369, y: 203, w: 292, h: 257 } },
+  { id: 'clock', name: 'Clock', component: <ClockWidget />, defaultRect: { x: 369, y: 500, w: 292, h: 218 } },
   { id: 'projects', name: 'Projects', component: <ProjectsWidget />, defaultRect: { x: 691, y: 8, w: 371, h: 448 } },
   { id: 'chat-topics', name: 'AI Chat', component: <ChatTopicsWidget />, defaultRect: { x: 691, y: 472, w: 371, h: 232 } },
   { id: 'tasks', name: 'Tasks', component: <TaskOverviewWidget />, defaultRect: { x: 0, y: 486, w: 190, h: 232 } },

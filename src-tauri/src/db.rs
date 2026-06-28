@@ -27,6 +27,19 @@ conn.execute_batch("PRAGMA foreign_keys=ON;")?;
 
         // Migration 003 may fail on existing databases (position already added above)
         conn.execute_batch(include_str!("../migrations/003_folders_position.sql")).ok();
+
+        // Migration 004: Add due_date to tasks
+        conn.execute_batch(include_str!("../migrations/004_dates.sql")).ok();
+
+        // Migration 005: Sprints
+        conn.execute_batch(include_str!("../migrations/005_sprints.sql")).ok();
+
+        // Migration 006: OKRs
+        conn.execute_batch(include_str!("../migrations/006_okr.sql")).ok();
+
+        // Migration 007: board_type for project routing
+        conn.execute_batch(include_str!("../migrations/007_board_type.sql")).ok();
+
         println!("Database initialized at: {:?}", db_path);
         Ok(Database { conn })
     }
@@ -51,6 +64,19 @@ conn.execute_batch("PRAGMA foreign_keys=ON;")?;
 
         // Migration 003 may fail on existing databases (position already added above)
         conn.execute_batch(include_str!("../migrations/003_folders_position.sql")).ok();
+
+        // Migration 004: Add due_date to tasks
+        conn.execute_batch(include_str!("../migrations/004_dates.sql")).ok();
+
+        // Migration 005: Sprints
+        conn.execute_batch(include_str!("../migrations/005_sprints.sql")).ok();
+
+        // Migration 006: OKRs
+        conn.execute_batch(include_str!("../migrations/006_okr.sql")).ok();
+
+        // Migration 007: board_type for project routing
+        conn.execute_batch(include_str!("../migrations/007_board_type.sql")).ok();
+
         Ok(Database { conn })
     }
 }

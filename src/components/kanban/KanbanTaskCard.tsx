@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react';
 import type { Task } from '../../types';
-import { Pencil, Trash2, ArrowRight, ArrowLeft, GripVertical } from 'lucide-react';
+import { Pencil, Trash2, ArrowRight, ArrowLeft, GripVertical, AlertCircle, Clock } from 'lucide-react';
 
 // Module-level drag state shared between KanbanTaskCard and KanbanColumn
 const dragState = {
@@ -153,6 +153,7 @@ export function KanbanTaskCard({ task, onMove, onEdit, onDelete }: {
         </div>
       </div>
       {task.description && <p className="text-xs font-medium mb-2 line-clamp-2" style={{ color: 'var(--color-text-secondary)' }}>{task.description}</p>}
+      {task.due_date && <DueDateBadge dueDate={task.due_date} />}
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 uppercase tracking-wide"
           style={{ backgroundColor: p.bg, color: p.text, borderColor: 'var(--color-border-primary)' }}>{p.label}</span>
@@ -161,6 +162,38 @@ export function KanbanTaskCard({ task, onMove, onEdit, onDelete }: {
           {next && <button onClick={() => onMove(task.id, next)} className="p-1 rounded hover:bg-[var(--color-bg-hover)]"><ArrowRight className="h-3 w-3" style={{ color: 'var(--color-text-tertiary)' }} /></button>}
         </div>
       </div>
+    </div>
+  );
+}
+
+function DueDateBadge({ dueDate }: { dueDate: string }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + 'T00:00:00');
+  const isOverdue = due < today;
+  const isToday = due.getTime() === today.getTime();
+
+  const formatted = due.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  let bg = 'rgba(156, 163, 175, 0.12)';
+  let text = '#6B7280';
+  let icon = null;
+
+  if (isOverdue) {
+    bg = 'rgba(239, 68, 68, 0.15)';
+    text = '#DC2626';
+    icon = <AlertCircle className="h-3 w-3 flex-shrink-0" />;
+  } else if (isToday) {
+    bg = 'rgba(251, 191, 36, 0.15)';
+    text = '#D97706';
+    icon = <Clock className="h-3 w-3 flex-shrink-0" />;
+  }
+
+  return (
+    <div className="flex items-center gap-1 mb-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full border w-fit"
+      style={{ backgroundColor: bg, color: text, borderColor: 'var(--color-border-primary)' }}>
+      {icon}
+      <span>{formatted}</span>
     </div>
   );
 }

@@ -47,6 +47,7 @@ pub fn run() {
             commands::tasks::update_task,
             commands::tasks::delete_task,
             commands::tasks::move_task,
+            commands::tasks::list_tasks_by_date_range,
             // Providers
             commands::providers::list_providers,
             commands::providers::create_provider,
@@ -102,6 +103,25 @@ pub fn run() {
             commands::terminal::resize_terminal,
             commands::terminal::close_terminal_tab,
             commands::terminal::list_terminal_tabs,
+            // Sprints
+            commands::sprints::create_sprint,
+            commands::sprints::list_sprints,
+            commands::sprints::get_active_sprint,
+            commands::sprints::start_sprint,
+            commands::sprints::complete_sprint,
+            commands::sprints::update_sprint,
+            commands::sprints::delete_sprint,
+            // OKRs
+            commands::okr::create_objective,
+            commands::okr::list_objectives,
+            commands::okr::get_objective,
+            commands::okr::update_objective,
+            commands::okr::delete_objective,
+            commands::okr::create_key_result,
+            commands::okr::update_key_result,
+            commands::okr::delete_key_result,
+            commands::okr::link_board_to_objective,
+            commands::okr::unlink_board_from_objective,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

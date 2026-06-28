@@ -2,6 +2,10 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Dashboard } from "./pages/Dashboard";
 import { Kanban } from "./pages/Kanban";
+import { Sprints } from "./pages/Sprints";
+import { SprintProject } from "./pages/SprintProject";
+import { OKRs } from "./pages/OKRs";
+import { OKRDetail } from "./pages/OKRDetail";
 import { ChatSessionPage } from "./pages/chat/ChatSessionPage";
 import { Notes } from "./pages/Notes";
 import { SettingsLayout } from "./pages/settings/SettingsLayout";
@@ -18,6 +22,11 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/kanban" element={<Kanban />} />
           <Route path="/kanban/:boardId" element={<Kanban />} />
+          <Route path="/sprints" element={<Sprints />} />
+          <Route path="/projects" element={<SprintProject />} />
+          <Route path="/projects/:boardId" element={<SprintProject />} />
+          <Route path="/okr" element={<OKRs />} />
+          <Route path="/okr/:id" element={<OKRDetail />} />
           <Route path="/ai-chat" element={<ChatSessionPage />} />
           <Route path="/ai-chat/:sessionId" element={<ChatSessionPage />} />
           <Route path="/notes" element={<Notes />} />

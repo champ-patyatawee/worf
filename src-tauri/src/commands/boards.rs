@@ -8,6 +8,7 @@ pub struct Board {
     pub name: String,
     pub slug: String,
     pub description: Option<String>,
+    pub board_type: String,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -18,6 +19,7 @@ pub struct BoardWithTasks {
     pub name: String,
     pub slug: String,
     pub description: Option<String>,
+    pub board_type: String,
     pub created_at: String,
     pub updated_at: String,
     pub tasks: Vec<super::tasks::Task>,
@@ -64,7 +66,7 @@ pub fn list_boards(state: State<AppState>) -> Result<Vec<Board>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let mut stmt = db
         .conn
-        .prepare("SELECT id, name, slug, description, created_at, updated_at FROM boards ORDER BY created_at DESC")
+        .prepare("SELECT id, name, slug, description, board_type, created_at, updated_at FROM boards ORDER BY created_at DESC")
         .map_err(|e| e.to_string())?;
 
     let boards = stmt
@@ -74,8 +76,9 @@ pub fn list_boards(state: State<AppState>) -> Result<Vec<Board>, String> {
                 name: row.get(1)?,
                 slug: row.get(2)?,
                 description: row.get(3)?,
-                created_at: row.get(4)?,
-                updated_at: row.get(5)?,
+                board_type: row.get(4)?,
+                created_at: row.get(5)?,
+                updated_at: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -90,29 +93,31 @@ pub fn get_board(state: State<AppState>, id_or_slug: String) -> Result<BoardWith
     let db = state.db.lock().map_err(|e| e.to_string())?;
 
     let board = db.conn.query_row(
-        "SELECT id, name, slug, description, created_at, updated_at FROM boards WHERE id = ?1",
+        "SELECT id, name, slug, description, board_type, created_at, updated_at FROM boards WHERE id = ?1",
         rusqlite::params![id_or_slug],
         |row| {
             Ok(Board {
                 id: row.get(0)?, name: row.get(1)?, slug: row.get(2)?,
-                description: row.get(3)?, created_at: row.get(4)?, updated_at: row.get(5)?,
+                description: row.get(3)?, board_type: row.get(4)?,
+                created_at: row.get(5)?, updated_at: row.get(6)?,
             })
         },
     ).or_else(|_| {
         db.conn.query_row(
-            "SELECT id, name, slug, description, created_at, updated_at FROM boards WHERE slug = ?1",
+            "SELECT id, name, slug, description, board_type, created_at, updated_at FROM boards WHERE slug = ?1",
             rusqlite::params![id_or_slug],
             |row| {
                 Ok(Board {
                     id: row.get(0)?, name: row.get(1)?, slug: row.get(2)?,
-                    description: row.get(3)?, created_at: row.get(4)?, updated_at: row.get(5)?,
+                    description: row.get(3)?, board_type: row.get(4)?,
+                    created_at: row.get(5)?, updated_at: row.get(6)?,
                 })
             },
         )
     }).map_err(|e| e.to_string())?;
 
-    let mut stmt = db.conn.prepare(
-        "SELECT id, title, description, priority, status, position, board_id, created_at, updated_at 
+let mut stmt = db.conn.prepare(
+        "SELECT id, title, description, priority, status, position, board_id, created_at, updated_at, due_date, sprint_id 
          FROM tasks WHERE board_id = ?1 ORDER BY position ASC",
     ).map_err(|e| e.to_string())?;
 
@@ -121,6 +126,7 @@ pub fn get_board(state: State<AppState>, id_or_slug: String) -> Result<BoardWith
             id: row.get(0)?, title: row.get(1)?, description: row.get(2)?,
             priority: row.get(3)?, status: row.get(4)?, position: row.get(5)?,
             board_id: row.get(6)?, created_at: row.get(7)?, updated_at: row.get(8)?,
+            due_date: row.get(9)?, sprint_id: row.get(10)?,
         })
     }).map_err(|e| e.to_string())?
     .collect::<Result<Vec<_>, _>>()
@@ -128,22 +134,24 @@ pub fn get_board(state: State<AppState>, id_or_slug: String) -> Result<BoardWith
 
     Ok(BoardWithTasks {
         id: board.id, name: board.name, slug: board.slug,
-        description: board.description, created_at: board.created_at,
+        description: board.description, board_type: board.board_type,
+        created_at: board.created_at,
         updated_at: board.updated_at, tasks,
     })
 }
 
 #[tauri::command]
-pub fn create_board(state: State<AppState>, name: String, description: Option<String>) -> Result<Board, String> {
+pub fn create_board(state: State<AppState>, name: String, description: Option<String>, board_type: Option<String>) -> Result<Board, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let slug = unique_board_slug(&db.conn, &name)?;
+    let bt = board_type.unwrap_or_else(|| "kanban".to_string());
 
     db.conn
         .execute(
-            "INSERT INTO boards (id, name, slug, description, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            rusqlite::params![id, name, slug, description, now, now],
+            "INSERT INTO boards (id, name, slug, description, board_type, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            rusqlite::params![id, name, slug, description, bt, now, now],
         )
         .map_err(|e| e.to_string())?;
 
@@ -152,9 +160,10 @@ pub fn create_board(state: State<AppState>, name: String, description: Option<St
         name,
         slug,
         description,
+        board_type: bt,
         created_at: now.clone(),
         updated_at: now,
-    })
+        })
 }
 
 #[tauri::command]

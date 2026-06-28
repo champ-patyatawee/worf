@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Board, Task } from '../../types';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanTaskModal } from './KanbanTaskModal';
+import { CalendarView } from './CalendarView';
 import { Plus } from 'lucide-react';
 
 const COLUMNS: { id: string; label: string }[] = [
@@ -19,6 +20,7 @@ export function KanbanBoard() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [viewMode, setViewMode] = useState<'board' | 'calendar'>('board');
 
   const loadBoard = useCallback(async (id: string) => {
     try {
@@ -62,19 +64,19 @@ export function KanbanBoard() {
     }
   };
 
-  const handleSaveTask = async (data: { title: string; description: string; priority: string; status: string }) => {
+  const handleSaveTask = async (data: { title: string; description: string; priority: string; status: string; due_date: string | null; sprint_id: string | null }) => {
     if (!boardId || !board) return;
     try {
       if (editingTask) {
         const updated = await invoke<Task>('update_task', {
           id: editingTask.id, title: data.title,
-          description: data.description || null, priority: data.priority, status: data.status,
+          description: data.description || null, priority: data.priority, status: data.status, due_date: data.due_date, sprint_id: data.sprint_id,
         });
         setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
       } else {
         const created = await invoke<Task>('create_task', {
           title: data.title, description: data.description || null,
-          priority: data.priority, status: data.status, boardId: board.id,
+          priority: data.priority, status: data.status, boardId: board.id, due_date: data.due_date, sprint_id: data.sprint_id,
         });
         setTasks((prev) => [...prev, created]);
       }
@@ -87,9 +89,6 @@ export function KanbanBoard() {
 
   const openCreateModal = () => { setEditingTask(null); setIsModalOpen(true); };
   const openEditModal = (task: Task) => { setEditingTask(task); setIsModalOpen(true); };
-
-  const getTasksByStatus = (status: string) =>
-    tasks.filter((t) => t.status === status).sort((a, b) => a.position - b.position);
 
   if (loading) {
     return (
@@ -124,28 +123,61 @@ export function KanbanBoard() {
             <p className="text-sm font-medium mt-0.5" style={{ color: 'var(--color-text-secondary)' }}>{board.description}</p>
           )}
         </div>
-        <button onClick={openCreateModal}
-          className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] border-2 text-sm font-bold transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none"
-          style={{ backgroundColor: 'var(--color-accent-primary)', borderColor: 'var(--color-border-primary)', color: 'white' }}>
-          <Plus className="h-4 w-4" /> New Task
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-x-scroll overflow-y-hidden scrollbar-thin p-4"
-        onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); } }}>
-        <div className="flex gap-4 h-full" style={{ width: 'max-content', minWidth: 'calc(100% + 300px)' }}>
-          {COLUMNS.map((column) => (
-            <KanbanColumn key={column.id} status={column.id} label={column.label}
-              tasks={getTasksByStatus(column.id)}
-              onMoveTask={handleMoveTask} onEditTask={openEditModal}
-              onDeleteTask={handleDeleteTask} onAddTask={openCreateModal} />
-          ))}
+        <div className="flex items-center gap-3">
+          {/* View toggle */}
+          <div className="flex items-center gap-1 border-2 border-[#0D0D0D] rounded-[8px] p-0.5 bg-[var(--color-bg-secondary)]">
+            <button onClick={() => setViewMode('board')}
+              className={`px-3 py-1 text-xs font-bold rounded-[6px] transition-all ${
+                viewMode === 'board'
+                  ? 'bg-white shadow-[1px_1px_0px_#0D0D0D] text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+              }`}>
+              Board
+            </button>
+            <button onClick={() => setViewMode('calendar')}
+              className={`px-3 py-1 text-xs font-bold rounded-[6px] transition-all ${
+                viewMode === 'calendar'
+                  ? 'bg-white shadow-[1px_1px_0px_#0D0D0D] text-[var(--color-text-primary)]'
+                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+              }`}>
+              Calendar
+            </button>
+          </div>
+          <button onClick={openCreateModal}
+            className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] border-2 text-sm font-bold transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none"
+            style={{ backgroundColor: 'var(--color-accent-primary)', borderColor: 'var(--color-border-primary)', color: 'white' }}>
+            <Plus className="h-4 w-4" /> New Task
+          </button>
         </div>
       </div>
 
+      {/* Content: Calendar or Columns */}
+      {viewMode === 'calendar' ? (
+        <CalendarView tasks={tasks} board={board} />
+      ) : (
+        <div className="flex-1 overflow-x-scroll overflow-y-hidden scrollbar-thin p-4"
+          onWheel={(e) => {
+            if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+              e.currentTarget.scrollLeft += e.deltaY;
+              e.preventDefault();
+            }
+          }}>
+          <div className="flex gap-4 h-full" style={{ width: 'max-content', minWidth: 'calc(100% + 300px)' }}>
+            {COLUMNS.map((column) => (
+              <KanbanColumn key={column.id} status={column.id} label={column.label}
+                tasks={tasks.filter(t => t.status === column.id).sort((a, b) => a.position - b.position)}
+                onMoveTask={handleMoveTask} onEditTask={openEditModal}
+                onDeleteTask={handleDeleteTask} onAddTask={openCreateModal} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
       <KanbanTaskModal isOpen={isModalOpen}
         onClose={() => { setIsModalOpen(false); setEditingTask(null); }}
-        onSave={handleSaveTask} task={editingTask} />
+        onSave={handleSaveTask} task={editingTask}
+        sprints={[]} activeSprintId={null} />
     </div>
   );
 }
