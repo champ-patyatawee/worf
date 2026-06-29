@@ -364,6 +364,16 @@ export function KanbanBacklog({
           return;
         }
       }
+
+      // FALLBACK: If the task was in a sprint and wasn't dropped on another sprint
+      // section or the backlog drop zone, treat it as a return to backlog.
+      // This means the user can drop a sprint task anywhere on the page
+      // to move it back to the backlog.
+      if (sourceSprintId !== null) {
+        console.log('[DRAG] FALLBACK - moving task', taskId, 'from sprint', sourceSprintId, 'to backlog');
+        onRemoveFromSprint(taskId, sourceSprintId);
+        return;
+      }
     };
 
     document.addEventListener('pointermove', handlePointerMove);
@@ -392,7 +402,9 @@ export function KanbanBacklog({
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* ===== BACKLOG SECTION ===== */}
-        <div>
+        <div
+          data-backlog-drop="true"
+        >
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-extrabold" style={{ color: 'var(--color-text-primary)' }}>
               Backlog ({sortedBacklog.length} items)
@@ -407,7 +419,6 @@ export function KanbanBacklog({
           </div>
 
           <div
-            data-backlog-drop="true"
             className="transition-all rounded-[8px] -mx-2 px-2 py-1"
           >
           {!hasBacklogTasks ? (

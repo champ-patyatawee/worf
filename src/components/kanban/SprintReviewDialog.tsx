@@ -1,6 +1,6 @@
 import type { Sprint, Task, SprintCompleteSummary } from '../../types';
 
-import { Columns3 } from 'lucide-react';
+import { Columns3, CheckCircle } from 'lucide-react';
 
 interface SprintReviewDialogProps {
   isOpen: boolean;
@@ -41,7 +41,7 @@ export function SprintReviewDialog({
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full border-2 border-[#0D0D0D] flex items-center justify-center"
             style={{ backgroundColor: '#16A34A' }}>
-            <span className="text-lg">✅</span>
+            <CheckCircle className="h-6 w-6" style={{ color: '#22C55E' }} />
           </div>
           <div>
             <h2 className="text-lg font-extrabold" style={{ color: 'var(--color-text-primary)' }}>
@@ -76,7 +76,7 @@ export function SprintReviewDialog({
         {completedTasks.length > 0 && (
           <div className="mb-3">
             <h3 className="text-xs font-extrabold mb-2 flex items-center gap-1.5" style={{ color: '#16A34A' }}>
-              <span>✅</span> Completed ({completedTasks.length})
+              <CheckCircle className="h-4 w-4" /> Completed ({completedTasks.length})
             </h3>
             <div className="space-y-1">
               {completedTasks.map((t) => (
@@ -84,7 +84,7 @@ export function SprintReviewDialog({
                   style={{ backgroundColor: 'var(--color-bg-primary)' }}>
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border"
                     style={{ borderColor: 'var(--color-border-primary)', color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-tertiary)' }}>
-                    {t.priority === 'high' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢'}
+                    {t.priority === 'high' ? <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#EF4444' }} /> : t.priority === 'medium' ? <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#CA8A04' }} /> : <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#22C55E' }} />}
                   </span>
                   <span className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>{t.title}</span>
                 </div>
@@ -105,7 +105,7 @@ export function SprintReviewDialog({
                   style={{ backgroundColor: 'var(--color-bg-primary)' }}>
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border"
                     style={{ borderColor: 'var(--color-border-primary)', color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-bg-tertiary)' }}>
-                    {t.priority === 'high' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢'}
+                    {t.priority === 'high' ? <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#EF4444' }} /> : t.priority === 'medium' ? <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#CA8A04' }} /> : <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#22C55E' }} />}
                   </span>
                   <span className="text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>{t.title}</span>
                 </div>

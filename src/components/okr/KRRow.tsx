@@ -21,7 +21,9 @@ export function KRRow({ keyResult, onUpdate, onDelete }: KRRowProps) {
   const pct = Math.max(0, Math.min(100, Math.round(progress * 100)));
 
   const confidenceColor = kr.confidence == null ? '#9CA3AF' : kr.confidence >= 7 ? '#22C55E' : kr.confidence >= 4 ? '#EAB308' : '#EF4444';
-  const confidenceIcon = kr.confidence == null ? '—' : kr.confidence >= 7 ? '🟢' : kr.confidence >= 4 ? '🟡' : '🔴';
+  const confidenceIcon = kr.confidence == null ? null : (
+    <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: kr.confidence >= 7 ? '#22C55E' : kr.confidence >= 4 ? '#CA8A04' : '#EF4444' }} />
+  );
 
   const handleSave = async () => {
     setSaving(true);

@@ -4,7 +4,6 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Board, Task } from '../../types';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanTaskModal } from './KanbanTaskModal';
-import { CalendarView } from './CalendarView';
 import { Plus } from 'lucide-react';
 
 const COLUMNS: { id: string; label: string }[] = [
@@ -20,7 +19,6 @@ export function KanbanBoard() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [viewMode, setViewMode] = useState<'board' | 'calendar'>('board');
 
   const loadBoard = useCallback(async (id: string) => {
     try {
@@ -124,25 +122,6 @@ export function KanbanBoard() {
           )}
         </div>
         <div className="flex items-center gap-3">
-          {/* View toggle */}
-          <div className="flex items-center gap-1 border-2 border-[#0D0D0D] rounded-[8px] p-0.5 bg-[var(--color-bg-secondary)]">
-            <button onClick={() => setViewMode('board')}
-              className={`px-3 py-1 text-xs font-bold rounded-[6px] transition-all ${
-                viewMode === 'board'
-                  ? 'bg-white shadow-[1px_1px_0px_#0D0D0D] text-[var(--color-text-primary)]'
-                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-              }`}>
-              Board
-            </button>
-            <button onClick={() => setViewMode('calendar')}
-              className={`px-3 py-1 text-xs font-bold rounded-[6px] transition-all ${
-                viewMode === 'calendar'
-                  ? 'bg-white shadow-[1px_1px_0px_#0D0D0D] text-[var(--color-text-primary)]'
-                  : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
-              }`}>
-              Calendar
-            </button>
-          </div>
           <button onClick={openCreateModal}
             className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] border-2 text-sm font-bold transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none"
             style={{ backgroundColor: 'var(--color-accent-primary)', borderColor: 'var(--color-border-primary)', color: 'white' }}>
@@ -151,27 +130,23 @@ export function KanbanBoard() {
         </div>
       </div>
 
-      {/* Content: Calendar or Columns */}
-      {viewMode === 'calendar' ? (
-        <CalendarView tasks={tasks} board={board} />
-      ) : (
-        <div className="flex-1 overflow-x-scroll overflow-y-hidden scrollbar-thin p-4"
-          onWheel={(e) => {
-            if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-              e.currentTarget.scrollLeft += e.deltaY;
-              e.preventDefault();
-            }
-          }}>
-          <div className="flex gap-4 h-full" style={{ width: 'max-content', minWidth: 'calc(100% + 300px)' }}>
-            {COLUMNS.map((column) => (
-              <KanbanColumn key={column.id} status={column.id} label={column.label}
-                tasks={tasks.filter(t => t.status === column.id).sort((a, b) => a.position - b.position)}
-                onMoveTask={handleMoveTask} onEditTask={openEditModal}
-                onDeleteTask={handleDeleteTask} onAddTask={openCreateModal} />
-            ))}
-          </div>
+      {/* Columns */}
+      <div className="flex-1 overflow-x-scroll overflow-y-hidden scrollbar-thin p-4"
+        onWheel={(e) => {
+          if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            e.currentTarget.scrollLeft += e.deltaY;
+            e.preventDefault();
+          }
+        }}>
+        <div className="flex gap-4 h-full" style={{ width: 'max-content', minWidth: 'calc(100% + 300px)' }}>
+          {COLUMNS.map((column) => (
+            <KanbanColumn key={column.id} status={column.id} label={column.label}
+              tasks={tasks.filter(t => t.status === column.id).sort((a, b) => a.position - b.position)}
+              onMoveTask={handleMoveTask} onEditTask={openEditModal}
+              onDeleteTask={handleDeleteTask} onAddTask={openCreateModal} />
+          ))}
         </div>
-      )}
+      </div>
 
       {/* Modals */}
       <KanbanTaskModal isOpen={isModalOpen}

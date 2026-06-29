@@ -30,6 +30,8 @@ export function SprintProject() {
   const [showSprintCreateModal, setShowSprintCreateModal] = useState(false);
   const [sprintToComplete, setSprintToComplete] = useState<Sprint | null>(null);
 
+  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
+
   // Sprint review state
   const [sprintReviewOpen, setSprintReviewOpen] = useState(false);
   const [sprintReviewData, setSprintReviewData] = useState<{
@@ -147,6 +149,23 @@ export function SprintProject() {
     }
   };
 
+  const handleUpdateSprint = async (data: { name: string; goal: string; startDate: string; endDate: string }) => {
+    if (!editingSprint) return;
+    try {
+      const updated = await invoke<Sprint>('update_sprint', {
+        id: editingSprint.id,
+        name: data.name,
+        goal: data.goal || null,
+        startDate: data.startDate,
+        endDate: data.endDate,
+      });
+      setSprints((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setEditingSprint(null);
+    } catch (err) {
+      console.error('Failed to update sprint:', err);
+    }
+  };
+
   const handleStartSprint = async (sprintId: string) => {
     try {
       const updated = await invoke<Sprint>('start_sprint', { id: sprintId });
@@ -158,9 +177,7 @@ export function SprintProject() {
   };
 
   const handleEditSprint = async (sprint: Sprint) => {
-    // For now, open the sprint create modal pre-filled? Or just log.
-    // Since we don't have an edit sprint modal yet, we can skip this or open create modal.
-    console.log('Edit sprint:', sprint);
+    setEditingSprint(sprint);
   };
 
   const handleDeleteSprint = async (sprintId: string) => {
@@ -219,7 +236,7 @@ export function SprintProject() {
 
   const handleRemoveFromSprint = async (taskId: string, _sprintId: string) => {
     try {
-      const updated = await invoke<Task>('update_task', { id: taskId, sprintId: null });
+      const updated = await invoke<Task>('update_task', { id: taskId, sprintId: '' });
       setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
     } catch (err) {
       console.error('Failed to remove task from sprint:', err);
@@ -270,7 +287,7 @@ export function SprintProject() {
   // Render the main content area based on sprint state
   const renderContent = () => {
     // Mode 1: Active sprint exists → show kanban columns
-    if (hasActiveSprint && activeSprint) {
+    if (activeSprintId && currentSprint?.status === 'active') {
       return (
         <div className="flex-1 overflow-x-scroll overflow-y-hidden scrollbar-thin p-4"
           onWheel={(e) => {
@@ -326,13 +343,6 @@ export function SprintProject() {
               {board ? board.name : 'Sprint Project'}
             </h1>
           </div>
-          {board && (
-            <button onClick={openCreateModal}
-              className="flex items-center gap-2 px-3 py-2 rounded-[var(--radius-md)] border-2 text-sm font-bold transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[3px_3px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none"
-              style={{ backgroundColor: 'var(--color-accent-primary)', borderColor: 'var(--color-border-primary)', color: 'white' }}>
-              <Plus className="h-4 w-4" /> New Task
-            </button>
-          )}
         </div>
 
         {/* Sprint bar — only shown when there's an active sprint */}
@@ -390,6 +400,15 @@ export function SprintProject() {
           onClose={() => setShowSprintCreateModal(false)}
           onCreate={handleCreateSprint}
           sprintCount={sprints.length}
+          editSprint={null}
+        />
+
+        <SprintCreateModal
+          isOpen={editingSprint !== null}
+          onClose={() => setEditingSprint(null)}
+          onCreate={handleUpdateSprint}
+          sprintCount={sprints.length}
+          editSprint={editingSprint}
         />
 
         <SprintCompleteDialog

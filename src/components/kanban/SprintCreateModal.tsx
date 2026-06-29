@@ -1,27 +1,39 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import type { Sprint } from '../../types';
 
 interface SprintCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCreate: (data: { name: string; goal: string; startDate: string; endDate: string }) => void;
   sprintCount: number;
+  editSprint?: Sprint | null;
 }
 
-export function SprintCreateModal({ isOpen, onClose, onCreate, sprintCount }: SprintCreateModalProps) {
+export function SprintCreateModal({ isOpen, onClose, onCreate, sprintCount, editSprint }: SprintCreateModalProps) {
   const [name, setName] = useState('');
   const [goal, setGoal] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [editMode, setEditMode] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      setName(`Sprint ${sprintCount + 1}`);
-      setGoal('');
-      setStartDate('');
-      setEndDate('');
+      if (editSprint) {
+        setEditMode(true);
+        setName(editSprint.name);
+        setGoal(editSprint.goal || '');
+        setStartDate(editSprint.start_date);
+        setEndDate(editSprint.end_date);
+      } else {
+        setEditMode(false);
+        setName(`Sprint ${sprintCount + 1}`);
+        setGoal('');
+        setStartDate('');
+        setEndDate('');
+      }
     }
-  }, [isOpen, sprintCount]);
+  }, [isOpen, sprintCount, editSprint]);
 
   if (!isOpen) return null;
 
@@ -36,7 +48,7 @@ export function SprintCreateModal({ isOpen, onClose, onCreate, sprintCount }: Sp
       <div className="w-full max-w-md rounded-[var(--radius-lg)] border-2 p-5"
         style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-primary)', boxShadow: '4px 4px 0px #0D0D0D' }}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-extrabold" style={{ color: 'var(--color-text-primary)' }}>Create Sprint</h2>
+          <h2 className="text-lg font-extrabold" style={{ color: 'var(--color-text-primary)' }}>{editMode ? 'Edit Sprint' : 'Create Sprint'}</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-[var(--color-bg-hover)]">
             <X className="h-4 w-4" style={{ color: 'var(--color-text-tertiary)' }} />
           </button>
@@ -79,7 +91,7 @@ export function SprintCreateModal({ isOpen, onClose, onCreate, sprintCount }: Sp
             <button type="submit" disabled={!name.trim() || !startDate || !endDate}
               className="px-4 py-2 text-sm font-bold rounded-[var(--radius-md)] border-2 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50"
               style={{ backgroundColor: 'var(--color-accent-primary)', borderColor: 'var(--color-border-primary)', color: 'white' }}>
-              Create
+              {editMode ? 'Save' : 'Create'}
             </button>
           </div>
         </form>

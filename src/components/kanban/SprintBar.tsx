@@ -13,10 +13,10 @@ interface SprintBarProps {
   boardId: string;
 }
 
-const statusConfig: Record<string, { label: string; color: string; dot: string }> = {
-  planning: { label: 'Planning', color: '#CA8A04', dot: '🟡' },
-  active: { label: 'Active', color: '#16A34A', dot: '🟢' },
-  complete: { label: 'Complete', color: '#6B7280', dot: '⚪' },
+const statusConfig: Record<string, { label: string; color: string }> = {
+  planning: { label: 'Planning', color: '#CA8A04' },
+  active: { label: 'Active', color: '#16A34A' },
+  complete: { label: 'Complete', color: '#6B7280' },
 };
 
 function formatDateRange(start: string, end: string) {
@@ -64,7 +64,7 @@ export function SprintBar({
       {activeSprint && activeStatus ? (
         <>
           <div className="flex items-center gap-2 text-sm font-bold" style={{ color: 'var(--color-text-primary)' }}>
-            <span className="text-base">{activeStatus.dot}</span>
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeStatus.color }} />
             <span style={{ color: activeStatus.color }}>{activeStatus.label}</span>
           </div>
           {activeSprint.goal && (

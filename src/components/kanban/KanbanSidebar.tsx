@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import type { Board, Objective, ObjectiveWithKRs } from '../../types';
-import { Plus, Trash2, FolderKanban, X, Columns3 } from 'lucide-react';
+import { Plus, Trash2, FolderKanban, X, Columns3, Target } from 'lucide-react';
 
 export function KanbanSidebar() {
   const location = useLocation();
@@ -109,7 +109,7 @@ export function KanbanSidebar() {
                 {boardObjectives[board.id] && (
                   <span className="text-[10px] font-medium truncate block"
                     style={{ color: 'var(--color-accent-primary)', opacity: 0.6 }}>
-                    🎯 {boardObjectives[board.id]}
+                    <Target className="h-3 w-3 inline" /> {boardObjectives[board.id]}
                   </span>
                 )}
               </div>

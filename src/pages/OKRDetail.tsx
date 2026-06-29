@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowLeft, Plus, Link, Pencil, Trash2, Timer, Columns3 } from 'lucide-react';
+import { ArrowLeft, Plus, Link, Pencil, Trash2, Timer, Columns3, CheckCircle, RefreshCw } from 'lucide-react';
 import type { ObjectiveWithKRs, Board } from '../types';
 import { KRRow, KRCreateModal, CheckInModal } from '../components/okr';
 
@@ -32,10 +32,6 @@ export function OKRDetail() {
     }
   }, [id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
-
   const loadBoards = useCallback(async () => {
     try {
       const boards = await invoke<Board[]>('list_boards');
@@ -46,8 +42,9 @@ export function OKRDetail() {
   }, []);
 
   useEffect(() => {
-    if (showBoardPicker) loadBoards();
-  }, [showBoardPicker, loadBoards]);
+    loadData();
+    loadBoards();
+  }, [loadData, loadBoards]);
 
   const handleUpdateKR = async (krId: string, currentValue: number, confidence?: number | null) => {
     await invoke('update_key_result', { id: krId, currentValue, confidence });
@@ -127,7 +124,9 @@ export function OKRDetail() {
     ? Math.round(keyResults.reduce((sum, kr) => sum + (kr.confidence ?? 0), 0) / keyResults.length)
     : null;
   const confColor = avgConfidence == null ? '#9CA3AF' : avgConfidence >= 7 ? '#22C55E' : avgConfidence >= 4 ? '#EAB308' : '#EF4444';
-  const confIcon = avgConfidence == null ? '—' : avgConfidence >= 7 ? '🟢' : avgConfidence >= 4 ? '🟡' : '🔴';
+  const confIcon = avgConfidence == null ? null : (
+    <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: avgConfidence >= 7 ? '#22C55E' : avgConfidence >= 4 ? '#CA8A04' : '#EF4444' }} />
+  );
 
   const linkedBoards = allBoards.filter((b) => boardIds.includes(b.id));
   const unlinkedBoards = allBoards.filter((b) => !boardIds.includes(b.id));
@@ -178,7 +177,7 @@ export function OKRDetail() {
           <div className="mb-6">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3 min-w-0">
-                <span className="text-2xl">{pct >= 100 ? '✅' : '🔄'}</span>
+                {pct >= 100 ? <CheckCircle className="h-8 w-8" style={{ color: '#22C55E' }} /> : <RefreshCw className="h-8 w-8" style={{ color: '#CA8A04' }} />}
                 <h1 className="text-xl font-extrabold truncate" style={{ color: 'var(--color-text-primary)' }}>
                   {objective.title}
                 </h1>

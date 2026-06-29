@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import type { Objective } from '../../types';
+import { Target, CheckCircle, RefreshCw } from 'lucide-react';
 
 interface OKRCardProps {
   objective: Objective;
@@ -12,7 +13,9 @@ export function OKRCard({ objective, krCount, linkedBoardCount, avgConfidence }:
   const navigate = useNavigate();
   const pct = Math.round(objective.progress * 100);
 
-  const confidenceIcon = avgConfidence == null ? '' : avgConfidence >= 7 ? '🟢' : avgConfidence >= 4 ? '🟡' : '🔴';
+  const confidenceIcon = avgConfidence == null ? null : (
+    <span className="inline-block w-3 h-3 rounded-full" style={{ backgroundColor: avgConfidence >= 7 ? '#22C55E' : avgConfidence >= 4 ? '#CA8A04' : '#EF4444' }} />
+  );
   const confidenceColor = avgConfidence == null ? '#9CA3AF' : avgConfidence >= 7 ? '#22C55E' : avgConfidence >= 4 ? '#EAB308' : '#EF4444';
 
   return (
@@ -22,7 +25,7 @@ export function OKRCard({ objective, krCount, linkedBoardCount, avgConfidence }:
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-lg flex-shrink-0">{pct >= 100 ? '✅' : pct >= 50 ? '🔄' : '🎯'}</span>
+          {pct >= 100 ? <CheckCircle className="h-5 w-5" style={{ color: '#22C55E' }} /> : pct >= 50 ? <RefreshCw className="h-5 w-5" style={{ color: '#CA8A04' }} /> : <Target className="h-5 w-5" style={{ color: 'var(--color-accent-primary)' }} />}
           <h3 className="font-extrabold text-base truncate" style={{ color: 'var(--color-text-primary)' }}>
             {objective.title}
           </h3>
