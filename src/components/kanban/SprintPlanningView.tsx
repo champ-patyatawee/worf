@@ -1,4 +1,5 @@
 import type { Sprint, Task } from '../../types';
+import type { ReactNode } from 'react';
 import { Plus, X } from 'lucide-react';
 
 interface SprintPlanningViewProps {
@@ -11,10 +12,10 @@ interface SprintPlanningViewProps {
   onEditTask: (task: Task) => void;
 }
 
-const priorityConfig: Record<string, { dot: string }> = {
-  low: { dot: '🟢' },
-  medium: { dot: '🟡' },
-  high: { dot: '🔴' },
+const priorityConfig: Record<string, { dot: ReactNode }> = {
+  low: { dot: <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" /> },
+  medium: { dot: <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500" /> },
+  high: { dot: <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" /> },
 };
 
 function formatDateRange(start: string, end: string) {

@@ -1,3 +1,4 @@
+import { AlertTriangle } from 'lucide-react';
 import type { Sprint } from '../../types';
 
 interface SprintCompleteDialogProps {
@@ -32,7 +33,7 @@ export function SprintCompleteDialog({ isOpen, sprint, onClose, onConfirm }: Spr
         </div>
         <div className="flex items-start gap-2 mt-3 p-3 rounded-[var(--radius-md)] border-2"
           style={{ backgroundColor: 'rgba(251, 191, 36, 0.1)', borderColor: 'rgba(251, 191, 36, 0.3)' }}>
-          <span className="text-sm flex-shrink-0 mt-0.5">⚠️</span>
+          <AlertTriangle className="w-4 h-4 text-yellow-500" />
           <p className="text-xs font-semibold" style={{ color: '#92400E' }}>
             Tasks not completed will be moved back to the backlog.
           </p>

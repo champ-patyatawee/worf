@@ -144,7 +144,7 @@ export function ProjectSidebar() {
                         color: 'var(--color-text-tertiary)',
                         backgroundColor: 'var(--color-bg-tertiary)',
                       }}>
-                      {isSprint ? '🏃' : '📋'}
+                      {isSprint ? <Timer className="h-3 w-3" /> : <Columns3 className="h-3 w-3" />}
                     </span>
                   </div>
                 </div>

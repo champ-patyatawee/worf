@@ -577,7 +577,11 @@ export function ProjectPage() {
                 {board && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border"
                     style={{ borderColor: 'var(--color-border-primary)', color: 'var(--color-text-tertiary)', backgroundColor: 'var(--color-bg-tertiary)' }}>
-                    {board.board_type === 'sprint' ? '🏃 Sprint' : '📋 Kanban'}
+                    <>
+                      {board.board_type === 'sprint' ? <Timer className="w-4 h-4 inline" /> : <Columns3 className="w-4 h-4 inline" />}
+                      {' '}
+                      {board.board_type === 'sprint' ? 'Sprint' : 'Kanban'}
+                    </>
                   </span>
                 )}
               </div>

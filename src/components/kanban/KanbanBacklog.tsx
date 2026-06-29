@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { Task, Sprint } from '../../types';
 import { Plus, Trash2, AlertCircle, Clock, ChevronDown, ChevronRight, X, Play, Pencil, ExternalLink } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -44,10 +45,10 @@ interface KanbanBacklogProps {
   onRemoveFromSprint: (taskId: string, sprintId: string) => void;
 }
 
-const priorityConfig: Record<string, { dot: string; color: string }> = {
-  low: { dot: '🟢', color: '#6B7280' },
-  medium: { dot: '🟡', color: '#CA8A04' },
-  high: { dot: '🔴', color: '#E11D48' },
+const priorityConfig: Record<string, { dot: ReactNode; color: string }> = {
+  low: { dot: <span className="inline-block w-2.5 h-2.5 rounded-full bg-green-500" />, color: '#6B7280' },
+  medium: { dot: <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500" />, color: '#CA8A04' },
+  high: { dot: <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500" />, color: '#E11D48' },
 };
 
 function DueDateBadge({ dueDate }: { dueDate: string }) {
@@ -142,7 +143,7 @@ function SprintSection({
           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </span>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="text-base flex-shrink-0">🟡</span>
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0" />
           <span className="font-extrabold text-base truncate" style={{ color: 'var(--color-text-primary)' }}>
             {sprint.name}
           </span>
@@ -512,7 +513,7 @@ export function KanbanBacklog({
                               className="flex items-center gap-2 w-full px-2 py-1.5 text-xs font-semibold rounded-[var(--radius-sm)] transition-colors hover:bg-[var(--color-bg-hover)] text-left"
                               style={{ color: 'var(--color-text-primary)' }}
                             >
-                              <span className="text-xs">🟡</span>
+                              <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500" />
                               <span className="truncate">{sprint.name}</span>
 </button>
                           ))}

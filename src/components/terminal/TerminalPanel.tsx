@@ -755,7 +755,7 @@ export function TerminalPanel() {
             }}
             aria-label="Find previous"
           >
-            ▲
+            <ArrowUp className="w-4 h-4" />
           </button>
           <button
             onClick={() => {
@@ -770,7 +770,7 @@ export function TerminalPanel() {
             }}
             aria-label="Find next"
           >
-            ▼
+            <ArrowDown className="w-4 h-4" />
           </button>
           <button
             onClick={() => setShowSearch(false)}
@@ -782,7 +782,7 @@ export function TerminalPanel() {
             }}
             aria-label="Close search"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}

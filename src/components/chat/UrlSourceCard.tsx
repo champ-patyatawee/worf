@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { ExternalLink, ChevronDown, ChevronUp, FileText, AlertTriangle } from "lucide-react";
 import type { FetchResult } from "../../stores/chatSessionStore";
 
 function getHostname(url: string): string {
@@ -28,7 +28,7 @@ export function UrlSourceCard({ sources }: { sources: FetchResult[] }) {
       <div className="mt-2 px-3 py-2 rounded-[var(--radius-md)] border-2"
         style={{ backgroundColor: "var(--color-bg-primary)", borderColor: "var(--color-border-primary)" }}>
         <p className="text-xs font-medium" style={{ color: "var(--color-text-tertiary)" }}>
-          ⚠️ Could not read pages: {sources.filter((s) => s.error).map((s) => s.url).join(", ")}
+          <AlertTriangle className="w-4 h-4 inline text-yellow-500" /> Could not read pages: {sources.filter((s) => s.error).map((s) => s.url).join(", ")}
         </p>
       </div>
     );

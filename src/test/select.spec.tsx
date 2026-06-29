@@ -135,8 +135,10 @@ describe("Select", () => {
     // Open the popover
     fireEvent.click(screen.getByText("Option 2"));
 
-    // The checkmark should be visible for the selected option
-    const checkmarks = screen.getAllByText("✓");
+    // The Check icon from lucide-react renders an SVG with class "lucide-check"
+    // The popover content is rendered in a Radix Portal (outside the render container),
+    // so we query from document
+    const checkmarks = document.querySelectorAll('.lucide-check');
     expect(checkmarks.length).toBe(1);
   });
 

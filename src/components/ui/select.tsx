@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
 export interface SelectOption {
@@ -62,7 +62,7 @@ export function Select({ value, onChange, options, placeholder, className = "" }
               >
                 <span>{option.label}</span>
                 {option.value === value && (
-                  <span className="text-xs font-bold" style={{ color: "var(--color-accent-primary)" }}>✓</span>
+                  <Check className="w-3 h-3" style={{ color: "var(--color-accent-primary)" }} />
                 )}
               </button>
             ))}
