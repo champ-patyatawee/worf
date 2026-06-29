@@ -149,25 +149,46 @@ pub fn create_objective(
 #[tauri::command]
 pub fn list_objectives(
     state: State<AppState>,
-    quarter: String,
-    year: i32,
+    quarter: Option<String>,
+    year: Option<i32>,
 ) -> Result<Vec<Objective>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let mut stmt = db
-        .conn
-        .prepare(&format!(
-            "{} WHERE quarter = ?1 AND year = ?2 ORDER BY progress DESC",
-            OBJECTIVE_SELECT
-        ))
-        .map_err(|e| e.to_string())?;
 
-    let objectives = stmt
-        .query_map(rusqlite::params![quarter, year], row_to_objective)
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    let objects: Vec<Objective> = if let (Some(q), Some(y)) = (&quarter, &year) {
+        // Filtered: match both quarter and year
+        let mut stmt = db
+            .conn
+            .prepare(&format!(
+                "{} WHERE quarter = ?1 AND year = ?2 ORDER BY progress DESC",
+                OBJECTIVE_SELECT
+            ))
+            .map_err(|e| e.to_string())?;
 
-    Ok(objectives)
+        let result = stmt
+            .query_map(rusqlite::params![q, y], row_to_objective)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        result
+    } else {
+        // Unfiltered: return all objectives
+        let mut stmt = db
+            .conn
+            .prepare(&format!(
+                "{} ORDER BY year DESC, quarter DESC, progress DESC",
+                OBJECTIVE_SELECT
+            ))
+            .map_err(|e| e.to_string())?;
+
+        let result = stmt
+            .query_map([], row_to_objective)
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        result
+    };
+
+    Ok(objects)
 }
 
 #[tauri::command]

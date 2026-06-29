@@ -33,11 +33,7 @@ export function ProjectsWidget() {
   }, []);
 
   const handleNavigate = (board: BoardSummary) => {
-    if (board.board_type === 'sprint') {
-      navigate(`/projects/${board.slug}`);
-    } else {
-      navigate(`/kanban/${board.slug}`);
-    }
+    navigate(`/project/${board.slug}`);
   };
 
   return (
@@ -69,7 +65,7 @@ export function ProjectsWidget() {
             ))}
           </div>
           {boards.length > 5 && (
-            <button onClick={() => navigate('/kanban')} className="w-full text-center text-[11px] font-bold text-[var(--color-accent-primary)] mt-2 hover:underline py-1">
+            <button onClick={() => navigate('/projects')} className="w-full text-center text-[11px] font-bold text-[var(--color-accent-primary)] mt-2 hover:underline py-1">
               View all {boards.length} projects
             </button>
           )}

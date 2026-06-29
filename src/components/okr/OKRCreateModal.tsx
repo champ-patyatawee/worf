@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
 interface OKRCreateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (quarter: string, year: number) => void;
   defaultQuarter: string;
   defaultYear: number;
 }
@@ -39,7 +39,7 @@ export function OKRCreateModal({ isOpen, onClose, onCreated, defaultQuarter, def
         quarter,
         year,
       });
-      onCreated();
+      onCreated(quarter, year);
       onClose();
     } catch (err) {
       console.error('Failed to create objective:', err);

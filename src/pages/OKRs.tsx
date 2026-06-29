@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Plus, Target } from 'lucide-react';
 import type { Objective, ObjectiveWithKRs } from '../types';
-import { OKRCard, OKRCreateModal, QuarterSelector } from '../components/okr';
+import { OKRCard, OKRCreateModal, QuarterSection } from '../components/okr';
 
-interface ObjectiveSummary {
+export interface ObjectiveSummary {
   objective: Objective;
   krCount: number;
   linkedBoardCount: number;
@@ -21,12 +21,12 @@ export function OKRs() {
   const [summaries, setSummaries] = useState<ObjectiveSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [{ quarter, year }, setQuarter] = useState(getCurrentQuarter());
+  const currentQuarter = getCurrentQuarter();
 
   const loadObjectives = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await invoke<Objective[]>('list_objectives', { quarter, year });
+      const data = await invoke<Objective[]>('list_objectives', { quarter: null, year: null });
       // Fetch full details for each to get KR counts, board counts, and confidence
       const enriched: ObjectiveSummary[] = [];
       for (const obj of data) {
@@ -51,27 +51,31 @@ export function OKRs() {
     } finally {
       setLoading(false);
     }
-  }, [quarter, year]);
+  }, []);
 
   useEffect(() => {
     loadObjectives();
   }, [loadObjectives]);
+
+  // Group by quarter key
+  const grouped = summaries.reduce<Record<string, ObjectiveSummary[]>>((acc, s) => {
+    const key = `${s.objective.year}-${s.objective.quarter}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(s);
+    return acc;
+  }, {});
+
+  // Sort keys newest first
+  const sortedKeys = Object.keys(grouped).sort().reverse();
 
   return (
     <div className="flex-1 overflow-y-auto p-4 lg:p-6 animate-fadeIn">
       <div className="max-w-[900px] mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Target className="h-6 w-6" style={{ color: 'var(--color-accent-primary)' }} />
-            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
-              OKRs
-            </h1>
-            <QuarterSelector
-              selected={{ quarter, year }}
-              onChange={(q, y) => setQuarter({ quarter: q, year: y })}
-            />
-          </div>
+          <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+            OKRs
+          </h1>
           <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-[12px] border-2 border-[#0D0D0D] bg-[var(--color-accent-primary)] text-white shadow-[3px_3px_0px_#0D0D0D] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[4px_4px_0px_#0D0D0D] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#0D0D0D] transition-all"
@@ -89,7 +93,7 @@ export function OKRs() {
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Target className="h-12 w-12 mb-4" style={{ color: 'var(--color-text-tertiary)', opacity: 0.3 }} />
             <h2 className="text-lg font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-              No OKRs yet for {year} {quarter}
+              No OKRs yet
             </h2>
             <p className="text-sm mb-6" style={{ color: 'var(--color-text-tertiary)' }}>
               Create your first objective to get started!
@@ -102,16 +106,21 @@ export function OKRs() {
             </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            {summaries.map((s) => (
-              <OKRCard
-                key={s.objective.id}
-                objective={s.objective}
-                krCount={s.krCount}
-                linkedBoardCount={s.linkedBoardCount}
-                avgConfidence={s.avgConfidence}
-              />
-            ))}
+          <div>
+            {sortedKeys.map((key) => {
+              const [yearStr, q] = key.split('-');
+              const year = parseInt(yearStr);
+              const isCurrent = year === currentQuarter.year && q === currentQuarter.quarter;
+              return (
+                <QuarterSection
+                  key={key}
+                  year={year}
+                  quarter={q}
+                  objectives={grouped[key]}
+                  defaultExpanded={isCurrent}
+                />
+              );
+            })}
           </div>
         )}
       </div>
@@ -119,9 +128,9 @@ export function OKRs() {
       <OKRCreateModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
-        onCreated={loadObjectives}
-        defaultQuarter={quarter}
-        defaultYear={year}
+        onCreated={() => { loadObjectives(); }}
+        defaultQuarter={currentQuarter.quarter}
+        defaultYear={currentQuarter.year}
       />
     </div>
   );

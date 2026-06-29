@@ -3,18 +3,14 @@ interface QuarterSelectorProps {
   onChange: (quarter: string, year: number) => void;
 }
 
-function generateQuarters() {
+export function generateQuarters() {
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  const currentQ = Math.ceil(currentMonth / 3);
   const quarters: { quarter: string; year: number }[] = [];
 
-  // From 2025-Q1 to current quarter + 2
+  // From 2025-Q1 to current year + 1 Q4
   for (let y = 2025; y <= currentYear + 1; y++) {
-    const startQ = y === 2025 ? 1 : 1;
-    const endQ = y === currentYear + 1 ? currentQ + 2 : (y === currentYear ? currentQ : 4);
-    for (let q = startQ; q <= Math.min(endQ, 4); q++) {
+    for (let q = 1; q <= 4; q++) {
       quarters.push({ quarter: `Q${q}`, year: y });
     }
   }

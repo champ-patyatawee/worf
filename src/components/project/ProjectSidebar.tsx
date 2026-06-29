@@ -1,0 +1,231 @@
+import { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { invoke } from '@tauri-apps/api/core';
+import type { Board } from '../../types';
+import { Plus, Trash2, Columns3, Timer, X, Search } from 'lucide-react';
+
+type BoardType = 'kanban' | 'sprint';
+
+export function ProjectSidebar() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [showDialog, setShowDialog] = useState(false);
+  const [newBoardName, setNewBoardName] = useState('');
+  const [newBoardType, setNewBoardType] = useState<BoardType>('kanban');
+  const [searchQuery, setSearchQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const loadBoards = async () => {
+    try {
+      const data = await invoke<Board[]>('list_boards');
+      setBoards(data);
+    } catch (err) {
+      console.error('Failed to load boards:', err);
+    }
+  };
+
+  useEffect(() => { loadBoards(); }, [location.pathname]);
+
+  useEffect(() => {
+    if (showDialog) {
+      setNewBoardName('');
+      setNewBoardType('kanban');
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [showDialog]);
+
+  const handleCreateBoard = async () => {
+    const name = newBoardName.trim();
+    if (!name) return;
+    try {
+      const created = await invoke<Board>('create_board', { name, description: null, boardType: newBoardType });
+      setShowDialog(false);
+      await loadBoards();
+      navigate(`/project/${created.slug}`);
+    } catch (err) {
+      console.error('Failed to create board:', err);
+    }
+  };
+
+  const handleDeleteBoard = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    try {
+      await invoke('delete_board', { id });
+      await loadBoards();
+    } catch (err) {
+      console.error('Failed to delete board:', err);
+    }
+  };
+
+  const currentBoardSlug = location.pathname.startsWith('/project/')
+    ? location.pathname.split('/')[2] : null;
+
+  // Also match old routes for backward compat highlight
+  if (!currentBoardSlug) {
+    const kanbanMatch = location.pathname.match(/^\/kanban\/(.+)/);
+    const projectMatch = location.pathname.match(/^\/projects\/(.+)/);
+    if (kanbanMatch) {
+      // We'll still highlight based on URL param
+    }
+  }
+
+  const filteredBoards = boards.filter(b =>
+    b.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <aside className="w-[260px] h-full flex flex-col flex-shrink-0 border-r-2"
+      style={{ backgroundColor: '#FFFBEB', borderColor: 'var(--color-border-primary)' }}>
+      <div className="p-4 border-b-2" style={{ borderColor: 'var(--color-border-primary)' }}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-[var(--radius-md)] border-2 flex items-center justify-center"
+              style={{ borderColor: 'var(--color-border-primary)', backgroundColor: 'var(--color-accent-primary)' }}>
+              <Columns3 className="h-4 w-4 text-white" />
+            </div>
+            <span className="font-extrabold text-lg tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Projects</span>
+          </div>
+          <button onClick={() => setShowDialog(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] border-2 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none"
+            style={{ borderColor: 'var(--color-border-primary)', backgroundColor: 'var(--color-bg-secondary)' }}>
+            <Plus className="h-4 w-4" style={{ color: 'var(--color-text-primary)' }} />
+          </button>
+        </div>
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: 'var(--color-text-tertiary)' }} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search projects..."
+            className="w-full pl-7 pr-2 py-1.5 text-xs border-2 rounded-[var(--radius-md)] outline-none"
+            style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-primary)', color: 'var(--color-text-primary)' }}
+          />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-3">
+        {filteredBoards.length === 0 ? (
+          <div className="text-sm px-2 py-2 text-center font-medium" style={{ color: 'var(--color-text-secondary)', opacity: 0.5 }}>
+            {searchQuery ? 'No matching projects' : 'No projects yet. Create one!'}
+          </div>
+        ) : (
+          filteredBoards.map((board) => {
+            const isActive = currentBoardSlug === board.slug;
+            const isSprint = board.board_type === 'sprint';
+            return (
+              <button
+                key={board.id}
+                onClick={() => navigate(`/project/${board.slug}`)}
+                className="w-full flex items-center group rounded-[var(--radius-md)] px-2 py-2 mb-1 transition-colors text-left"
+                style={{
+                  backgroundColor: isActive ? 'var(--color-accent-subtle)' : 'transparent',
+                  borderLeft: isActive ? '3px solid var(--color-accent-primary)' : '3px solid transparent',
+                }}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {isSprint ? (
+                      <Timer className="h-3.5 w-3.5 flex-shrink-0" style={{ color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)' }} />
+                    ) : (
+                      <Columns3 className="h-3.5 w-3.5 flex-shrink-0" style={{ color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)' }} />
+                    )}
+                    <span className="text-sm truncate font-medium block"
+                      style={{
+                        color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-primary)',
+                        opacity: isActive ? 1 : 0.7,
+                      }}>
+                      {board.name}
+                    </span>
+                    <span className="text-[9px] font-bold px-1 py-0.5 rounded-full border flex-shrink-0"
+                      style={{
+                        borderColor: 'var(--color-border-primary)',
+                        color: 'var(--color-text-tertiary)',
+                        backgroundColor: 'var(--color-bg-tertiary)',
+                      }}>
+                      {isSprint ? '🏃' : '📋'}
+                    </span>
+                  </div>
+                </div>
+                <button onClick={(e) => handleDeleteBoard(board.id, e)}
+                  className="hidden group-hover:block p-1 rounded-[var(--radius-md)] hover:bg-[var(--color-bg-hover)] flex-shrink-0">
+                  <Trash2 className="h-3 w-3" style={{ color: 'var(--color-error)' }} />
+                </button>
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      {/* Create Board Dialog */}
+      {showDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
+          onClick={() => setShowDialog(false)}>
+          <div className="w-80 rounded-[var(--radius-lg)] border-2 p-5 animate-scaleIn"
+            style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-border-primary)', boxShadow: 'var(--shadow-modal)' }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-extrabold" style={{ color: 'var(--color-text-primary)' }}>New Project</h2>
+              <button onClick={() => setShowDialog(false)} className="p-1 rounded hover:bg-[var(--color-bg-hover)]">
+                <X className="h-4 w-4" style={{ color: 'var(--color-text-tertiary)' }} />
+              </button>
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); handleCreateBoard(); }} className="space-y-3">
+              <input ref={inputRef} type="text" value={newBoardName} onChange={(e) => setNewBoardName(e.target.value)}
+                placeholder="Project name..." autoFocus
+                className="w-full px-3 py-2 text-sm border-2 rounded-[var(--radius-md)] outline-none"
+                style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-primary)', color: 'var(--color-text-primary)' }} />
+
+              {/* Type picker */}
+              <div>
+                <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>Project Type</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewBoardType('kanban')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-[var(--radius-md)] border-2 transition-all ${
+                      newBoardType === 'kanban'
+                        ? 'shadow-[1px_1px_0px_#0D0D0D]'
+                        : 'hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D]'
+                    }`}
+                    style={{
+                      backgroundColor: newBoardType === 'kanban' ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
+                      borderColor: 'var(--color-border-primary)',
+                      color: newBoardType === 'kanban' ? '#FFFFFF' : 'var(--color-text-primary)',
+                    }}>
+                    <Columns3 className="h-3.5 w-3.5" /> Kanban
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewBoardType('sprint')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-[var(--radius-md)] border-2 transition-all ${
+                      newBoardType === 'sprint'
+                        ? 'shadow-[1px_1px_0px_#0D0D0D]'
+                        : 'hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D]'
+                    }`}
+                    style={{
+                      backgroundColor: newBoardType === 'sprint' ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
+                      borderColor: 'var(--color-border-primary)',
+                      color: newBoardType === 'sprint' ? '#FFFFFF' : 'var(--color-text-primary)',
+                    }}>
+                    <Timer className="h-3.5 w-3.5" /> Sprint
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button type="button" onClick={() => setShowDialog(false)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-[var(--radius-md)] border-2 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none"
+                  style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-border-primary)', color: 'var(--color-text-primary)' }}>Cancel</button>
+                <button type="submit" disabled={!newBoardName.trim()}
+                  className="px-3 py-1.5 text-xs font-bold rounded-[var(--radius-md)] border-2 transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--color-accent-primary)', borderColor: 'var(--color-border-primary)', color: 'white' }}>Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </aside>
+  );
+}
