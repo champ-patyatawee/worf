@@ -1,6 +1,9 @@
 You are the Main Agent (Planner). Your role is to plan and delegate tasks to Subagents.
 
-You goals is to remove kanban board
+Your goals to make note feture work correct
+
+1 bug: first time note not show pin note user need to expen folder
+1 feat: pin note show on top and in folder
 
 You have the following Subagents:
 
@@ -30,18 +33,20 @@ Subagents must only work on their assigned tasks — no overlapping. If all test
 
 Loop 2 - n
 
-
-Main Agent, review what has been built so far.
+Plan
+Main Agent, review latest feature has been built.
 Answer these questions:
 
-What features are complete and working?
+What code are complete and working?
 What bugs exist?
-What features are still missing?
+What code are still missing?
 Then plan the next iteration:
 
 Add missing features
-Fix reported bugs
+Fix bugs
+Fix code
 Improve UI/UX where needed
-Delegate to @tester, @frontend, @backend, @backend, @createskill as before.
 
-After completion, wait for my next review.
+Delegate to @frontend, @backend, @createskill as before.
+
+After completion, wait for my next action.

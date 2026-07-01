@@ -67,21 +67,16 @@ export function NoteSidebar() {
   useEffect(() => {
     const unsub = noteStore.subscribe(() => forceUpdate((n) => n + 1));
     noteStore.loadFolders();
-    noteStore.loadNotes();
+    noteStore.loadAllNotes();
     return () => unsub();
   }, []);
 
   // Refresh when sidebarRefreshKey changes (triggered from editor)
-  // Preserve current view — if a folder is active, reload its notes instead of root notes
   useEffect(() => {
-    const key = st.sidebarRefreshKey;
-    if (activeFolderIdRef.current) {
-      noteStore.loadAllNotes();
-    } else {
-      noteStore.loadNotes();
-    }
+    const key = st.sidebarRefreshKey; // still depend on key for refresh
+    noteStore.loadAllNotes();
     noteStore.loadFolders();
-  }, [st.sidebarRefreshKey]);  // Ref is always current; state not needed
+  }, [st.sidebarRefreshKey]);
 
   // Handle Cmd+P for quick switcher
   useEffect(() => {
@@ -547,7 +542,6 @@ export function NoteSidebar() {
                 {expandedFolders.has(folder.id) && (
                   <div className="ml-4">
                     {getFolderNotes(folder.id)
-                      .filter((n) => n.pinned !== 1)
                       .sort((a, b) => a.position - b.position)
                       .map((note) => (
                         <NoteItem

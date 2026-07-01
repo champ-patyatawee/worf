@@ -2,6 +2,7 @@ use crate::commands::folders::Folder;
 use crate::AppState;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 use tauri::State;
 
 // ---------------------------------------------------------------------------
@@ -103,7 +104,8 @@ fn count_words(content: &str) -> i32 {
 /// Parse [[wikilinks]] from markdown content.
 /// Returns list of (target_title, display_text) tuples.
 fn parse_wikilinks(content: &str) -> Vec<(String, String)> {
-    let re = Regex::new(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]").unwrap();
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| Regex::new(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]").unwrap());
     re.captures_iter(content)
         .map(|cap| {
             let target = cap[1].trim().to_string();
@@ -350,9 +352,21 @@ pub fn update_note(
         )
         .map_err(|e| e.to_string())?;
 
-    // Rebuild wikilinks if content changed
+    // Rebuild wikilinks in background so save returns immediately
     if content != current.content {
-        update_note_links(&db.conn, &id, &content)?;
+        let db_path = db.path.clone();
+        let note_id = id.clone();
+        let content_bg = content.clone();
+        std::thread::spawn(move || {
+            match rusqlite::Connection::open(&db_path) {
+                Ok(conn) => {
+                    if let Err(e) = update_note_links(&conn, &note_id, &content_bg) {
+                        eprintln!("Background wikilink rebuild failed: {}", e);
+                    }
+                }
+                Err(e) => eprintln!("Background wikilink: failed to open DB: {}", e),
+            }
+        });
     }
 
     Ok(Note {
@@ -597,6 +611,36 @@ pub fn toggle_pin_note(state: State<AppState>, id: String) -> Result<Note, Strin
         &format!("{} FROM notes WHERE id = ?1", NOTE_SELECT),
         &[&id as &dyn rusqlite::types::ToSql],
     )
+}
+
+#[tauri::command]
+pub fn save_note_image(state: State<AppState>, source_path: String) -> Result<String, String> {
+    // Get app data dir from db path (db.path is the full path to worf.db)
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let app_dir = db.path.parent().ok_or("Failed to get app data directory")?;
+    let img_dir = app_dir.join("notes").join("images");
+
+    // Create directory if it doesn't exist
+    std::fs::create_dir_all(&img_dir).map_err(|e| format!("Failed to create images dir: {}", e))?;
+
+    // Generate unique filename preserving extension
+    let ext = source_path.rsplit('.').next().unwrap_or("png");
+    let filename = format!("{}.{}", uuid::Uuid::new_v4(), ext);
+    let dest = img_dir.join(&filename);
+
+    // OS-level copy (fast, no JS memory round-trip)
+    std::fs::copy(&source_path, &dest).map_err(|e| format!("Failed to copy image: {}", e))?;
+
+    Ok(filename)
+}
+
+#[tauri::command]
+pub fn get_note_image(state: State<AppState>, filename: String) -> Result<Vec<u8>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let app_dir = db.path.parent().ok_or("Failed to get app data directory")?;
+    let img_path = app_dir.join("notes").join("images").join(&filename);
+
+    std::fs::read(&img_path).map_err(|e| format!("Failed to read image '{}': {}", filename, e))
 }
 
 #[tauri::command]

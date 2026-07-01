@@ -90,6 +90,8 @@ pub fn run() {
             commands::notes::search_notes,
             commands::notes::reorder_notes,
             commands::notes::toggle_pin_note,
+            commands::notes::save_note_image,
+            commands::notes::get_note_image,
             commands::notes::ensure_draft_folder,
             // Folders
             commands::folders::list_folders,

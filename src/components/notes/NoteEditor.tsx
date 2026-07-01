@@ -5,10 +5,14 @@ import { useNavigate } from "react-router-dom";
 import { X, Plus, Pin, PinOff, Loader2, Trash2, Search, ChevronUp, ChevronDown } from "lucide-react";
 import { noteStore, triggerSidebarRefresh } from "./noteStore";
 import { NoteToolbar } from "./NoteToolbar";
+import { EditBar } from "./EditBar";
+import { LocalImage } from "./LocalImage";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { WikilinkAutocomplete } from "./WikilinkAutocomplete";
 import { generateSlug, preprocessWikilinks, buildNotesLookup, parseWikilinks } from "./noteHelpers";
 import type { Note, NoteWithRelations, EditorMode, LinkInfo } from "./Types";
+import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import hljs from "highlight.js";
 import "highlight.js/styles/github.css";
 import mermaid from "mermaid";
@@ -90,7 +94,7 @@ export function NoteEditor() {
           : []
       );
     }
-  }, [st.activeNote?.note?.id, st.activeNote?.note?.updated_at]);
+  }, [st.activeNote?.note?.id]);
 
   // Persist editor mode
   const handleChangeMode = useCallback((newMode: EditorMode) => {
@@ -326,6 +330,50 @@ export function NoteEditor() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // ── EditBar content change handler ──
+  const handleEditBarChange = useCallback(
+    (newContent: string) => {
+      setContent(newContent);
+      scheduleSave();
+    },
+    [scheduleSave],
+  );
+
+  // ── Image insert handler ──
+  const handleInsertImage = useCallback(async () => {
+    // Capture cursor position and content BEFORE any async work
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const cursorPos = textarea.selectionStart;
+    const currentContent = contentRef.current;
+
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [
+          {
+            name: "Images",
+            extensions: ["png", "jpg", "jpeg", "gif", "svg", "webp"],
+          },
+        ],
+      });
+      if (!selected) return;
+
+      // Use the fast Rust backend command instead of readFile+writeFile
+      const filename = await invoke<string>("save_note_image", {
+        sourcePath: selected as string,
+      });
+
+      const imgMd = `![image](/local-img/${filename})`;
+      const newContent =
+        currentContent.slice(0, cursorPos) + imgMd + currentContent.slice(cursorPos);
+      setContent(newContent);
+      scheduleSave();
+    } catch (e) {
+      console.error("Failed to insert image:", e);
+    }
+  }, [textareaRef, scheduleSave]);
+
   // ── Pin toggle ──
   const handleTogglePin = useCallback(async () => {
     const active = st.activeNote;
@@ -540,6 +588,14 @@ export function NoteEditor() {
         lastSaved={lastSaved}
       />
 
+      {/* ── Edit Bar ── */}
+      <EditBar
+        textareaRef={textareaRef}
+        content={content}
+        onContentChange={handleEditBarChange}
+        onInsertImage={handleInsertImage}
+      />
+
       {/* ── Search bar ── */}
       {searchOpen && (
         <div
@@ -696,6 +752,20 @@ Use #tags to categorize your notes."
                         h6: makeHeading(6),
                       };
                     })(),
+                    img: ({ src, alt, ...props }) => {
+                      // Handle local images: check both raw (/local-img/) and resolved (http://.../local-img/) URLs
+                      const localImgMarker = "/local-img/";
+                      if (src && src.includes(localImgMarker)) {
+                        const filename = src.split(localImgMarker).pop() || "";
+                        return (
+                          <LocalImage
+                            filename={filename}
+                            alt={alt || ""}
+                          />
+                        );
+                      }
+                      return <img src={src} alt={alt} {...props} />;
+                    },
                     a: ({ href, children, ...props }) => {
                       if (href?.startsWith("/notes/")) {
                         return (

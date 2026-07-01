@@ -1,8 +1,9 @@
 use rusqlite::{Connection, Result};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 pub struct Database {
     pub conn: Connection,
+    pub path: PathBuf,
 }
 
 impl Database {
@@ -41,7 +42,7 @@ conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         conn.execute_batch(include_str!("../migrations/007_board_type.sql")).ok();
 
         println!("Database initialized at: {:?}", db_path);
-        Ok(Database { conn })
+        Ok(Database { conn, path: db_path })
     }
 
     #[cfg(test)]
@@ -77,7 +78,7 @@ conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         // Migration 007: board_type for project routing
         conn.execute_batch(include_str!("../migrations/007_board_type.sql")).ok();
 
-        Ok(Database { conn })
+        Ok(Database { conn, path: PathBuf::new() })
     }
 }
 

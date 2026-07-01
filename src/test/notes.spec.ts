@@ -239,11 +239,40 @@ describe("noteStore", () => {
   });
 
   describe("loadFolders", () => {
-    it("calls invoke list_folders", async () => {
-      const mockFolders = [{ id: "f1", name: "Test", position: 0, created_at: "", updated_at: "" }];
-      vi.mocked(invoke).mockResolvedValue(mockFolders);
+    it("calls invoke list_folders and ensure_draft_folder, merges draft", async () => {
+      const mockFolders = [
+        { id: "f1", name: "Test", position: 0, created_at: "", updated_at: "" },
+      ];
+      const mockDraftFolder = {
+        id: "draft-1",
+        name: "Draft",
+        position: 999,
+        created_at: "",
+        updated_at: "",
+      };
+      vi.mocked(invoke)
+        .mockResolvedValueOnce(mockFolders)      // list_folders
+        .mockResolvedValueOnce(mockDraftFolder);  // ensure_draft_folder
+
       await noteStore.loadFolders();
+
       expect(invoke).toHaveBeenCalledWith("list_folders");
+      expect(invoke).toHaveBeenCalledWith("ensure_draft_folder");
+      // Both the listed folders AND the draft folder should be in state
+      expect(noteStore.state.folders).toEqual([...mockFolders, mockDraftFolder]);
+    });
+
+    it("handles ensure_draft_folder failure gracefully", async () => {
+      const mockFolders = [
+        { id: "f1", name: "Test", position: 0, created_at: "", updated_at: "" },
+      ];
+      vi.mocked(invoke)
+        .mockResolvedValueOnce(mockFolders)               // list_folders
+        .mockRejectedValueOnce(new Error("DB error"));     // ensure_draft_folder fails
+
+      await noteStore.loadFolders();
+
+      // The listed folders should still be present; draft folder is absent
       expect(noteStore.state.folders).toEqual(mockFolders);
     });
   });

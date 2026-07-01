@@ -185,7 +185,10 @@ export const noteStore = {
       if (state.activeNote && state.activeNote.note.id === id) {
         state.activeNote = {
           ...state.activeNote,
-          note: updated,
+          note: {
+            ...updated,
+            content: state.activeNote.note.content, // Preserve local editor content
+          },
         };
       }
       state.tags = aggregateTags(state.notes);

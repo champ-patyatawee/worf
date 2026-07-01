@@ -23,7 +23,7 @@ export function Notes() {
   useEffect(() => {
     if (!initialized.current) {
       initialized.current = true;
-      noteStore.loadNotes();
+      noteStore.loadAllNotes();
       noteStore.loadFolders();
     }
   }, []);
