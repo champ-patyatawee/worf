@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import type { Board } from '../types';
-import { Columns3, Timer, Plus, FolderKanban, Search } from 'lucide-react';
+import { Columns3, Timer, RefreshCw, Plus, FolderKanban, Search } from 'lucide-react';
 
 interface BoardSummary {
   id: string;
@@ -152,7 +152,7 @@ function ProjectCard({ board, onClick }: { board: BoardSummary; onClick: () => v
       <div className="w-10 h-10 rounded-[var(--radius-md)] border-2 flex items-center justify-center flex-shrink-0"
         style={{ borderColor: 'var(--color-border-primary)', backgroundColor: isSprint ? 'rgba(124, 92, 255, 0.1)' : 'rgba(74, 222, 128, 0.1)' }}>
         {isSprint ? (
-          <Timer className="h-5 w-5" style={{ color: '#7C5CFF' }} />
+          <RefreshCw className="h-5 w-5" style={{ color: '#7C5CFF' }} />
         ) : (
           <Columns3 className="h-5 w-5" style={{ color: '#4ADE80' }} />
         )}

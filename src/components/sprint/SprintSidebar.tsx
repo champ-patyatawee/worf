@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import type { Board, Objective, ObjectiveWithKRs } from '../../types';
-import { Plus, Trash2, Timer, X, Target } from 'lucide-react';
+import { Plus, Trash2, Timer, RefreshCw, X, Target } from 'lucide-react';
 
 export function SprintSidebar() {
   const location = useLocation();
@@ -81,7 +81,7 @@ export function SprintSidebar() {
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-[var(--radius-md)] border-2 flex items-center justify-center"
               style={{ borderColor: 'var(--color-border-primary)', backgroundColor: 'var(--color-accent-primary)' }}>
-              <Timer className="h-4 w-4 text-white" />
+              <RefreshCw className="h-4 w-4 text-white" />
             </div>
             <span className="font-extrabold text-lg tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Sprints</span>
           </div>

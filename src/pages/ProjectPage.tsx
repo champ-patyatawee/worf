@@ -11,7 +11,7 @@ import { SprintReviewDialog } from '../components/kanban/SprintReviewDialog';
 import { SprintCompleteDialog } from '../components/kanban/SprintCompleteDialog';
 import { CalendarView } from '../components/kanban/CalendarView';
 import { ProjectSidebar } from '../components/project/ProjectSidebar';
-import { Columns3, Timer, CalendarDays, Target, Plus, ExternalLink, ArrowUpRight } from 'lucide-react';
+import { Columns3, RefreshCw, CalendarDays, Target, Plus, ExternalLink, ArrowUpRight } from 'lucide-react';
 
 const COLUMNS: { id: string; label: string }[] = [
   { id: 'todo', label: 'To Do' },
@@ -20,8 +20,7 @@ const COLUMNS: { id: string; label: string }[] = [
 ];
 
 const tabs = [
-  { id: 'board', label: 'Board', icon: Columns3 },
-  { id: 'sprint', label: 'Sprint', icon: Timer },
+  { id: 'sprint', label: 'Sprint', icon: RefreshCw },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'okr', label: 'OKR', icon: Target },
 ];
@@ -134,7 +133,7 @@ export function ProjectPage() {
   // When boardId changes, load board data
   useEffect(() => {
     if (boardId) {
-      setActiveTab('board');
+      setActiveTab('sprint');
       loadBoardData(boardId);
     } else {
       setBoard(null);
@@ -149,9 +148,7 @@ export function ProjectPage() {
   // Load sprints when board is resolved
   useEffect(() => {
     if (board) {
-      if (board.board_type === 'sprint') {
-        loadSprints(board.id);
-      }
+      loadSprints(board.id);
       loadLinkedObjective(board.id);
     }
   }, [board, loadSprints, loadLinkedObjective]);
@@ -328,8 +325,6 @@ export function ProjectPage() {
   // ===== Tab rendering =====
   const renderTabContent = () => {
     switch (activeTab) {
-      case 'board':
-        return renderBoardTab();
       case 'sprint':
         return renderSprintTab();
       case 'calendar':
@@ -337,48 +332,11 @@ export function ProjectPage() {
       case 'okr':
         return renderOKRTab();
       default:
-        return renderBoardTab();
+        return renderSprintTab();
     }
   };
 
-  const renderBoardTab = () => (
-    <div className="flex-1 overflow-x-scroll overflow-y-hidden scrollbar-thin p-4"
-      onWheel={(e) => {
-        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-          e.currentTarget.scrollLeft += e.deltaY;
-          e.preventDefault();
-        }
-      }}>
-      <div className="flex gap-4 h-full" style={{ width: 'max-content', minWidth: 'calc(100% + 300px)' }}>
-        {COLUMNS.map((column) => (
-          <KanbanColumn key={column.id} status={column.id} label={column.label}
-            tasks={tasks.filter(t => t.status === column.id).sort((a, b) => a.position - b.position)}
-            onMoveTask={handleMoveTask} onEditTask={openEditModal}
-            onDeleteTask={handleDeleteTask} onAddTask={openCreateModal} />
-        ))}
-      </div>
-    </div>
-  );
-
   const renderSprintTab = () => {
-    // Sprint tab is only for sprint-type boards
-    if (board?.board_type !== 'sprint') {
-      return (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-[var(--radius-lg)] border-2 flex items-center justify-center"
-              style={{ borderColor: 'var(--color-border-primary)', backgroundColor: 'var(--color-bg-secondary)' }}>
-              <Timer className="h-8 w-8" style={{ color: 'var(--color-text-tertiary)' }} />
-            </div>
-            <p className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>Not a Sprint Project</p>
-            <p className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-              Sprint features are only available for sprint-type projects.
-            </p>
-          </div>
-        </div>
-      );
-    }
-
     // Mode 1: Active sprint exists → show kanban columns filtered by sprint
     if (activeSprintId && currentSprint?.status === 'active') {
       return (
@@ -558,9 +516,6 @@ export function ProjectPage() {
     );
   }
 
-  // ===== Tab availability =====
-  const sprintTabDisabled = board?.board_type !== 'sprint';
-
   return (
     <div className="flex-1 flex overflow-hidden">
       <ProjectSidebar />
@@ -577,11 +532,7 @@ export function ProjectPage() {
                 {board && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border"
                     style={{ borderColor: 'var(--color-border-primary)', color: 'var(--color-text-tertiary)', backgroundColor: 'var(--color-bg-tertiary)' }}>
-                    <>
-                      {board.board_type === 'sprint' ? <Timer className="w-4 h-4 inline" /> : <Columns3 className="w-4 h-4 inline" />}
-                      {' '}
-                      {board.board_type === 'sprint' ? 'Sprint' : 'Kanban'}
-                    </>
+                    <RefreshCw className="w-4 h-4 inline" /> Sprint
                   </span>
                 )}
               </div>
@@ -599,27 +550,22 @@ export function ProjectPage() {
           {/* Tab bar — pill-style segmented control */}
           <div className="flex items-center gap-1 px-6 pb-3">
             {tabs.map((tab) => {
-              const isDisabled = tab.id === 'sprint' && sprintTabDisabled;
               const isActive = activeTab === tab.id;
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => !isDisabled && setActiveTab(tab.id)}
-                  disabled={isDisabled}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-[var(--radius-md)] border-2 transition-all ${
-                    isDisabled
-                      ? 'opacity-40 cursor-not-allowed'
-                      : isActive
-                        ? 'shadow-[1px_1px_0px_#0D0D0D]'
-                        : 'hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none'
+                    isActive
+                      ? 'shadow-[1px_1px_0px_#0D0D0D]'
+                      : 'hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none'
                   }`}
                   style={{
                     backgroundColor: isActive ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
                     borderColor: 'var(--color-border-primary)',
                     color: isActive ? '#FFFFFF' : 'var(--color-text-secondary)',
                   }}
-                  title={isDisabled ? 'Sprint features only available for sprint projects' : tab.label}
                 >
                   <Icon className="h-3.5 w-3.5" />
                   {tab.label}
@@ -629,8 +575,8 @@ export function ProjectPage() {
           </div>
         </div>
 
-        {/* Sprint bar — only shown on sprint tab with active sprint */}
-        {board && board.board_type === 'sprint' && hasActiveSprint && (
+        {/* Sprint bar */}
+        {board && hasActiveSprint && (
           <SprintBar
             sprints={sprints}
             activeSprintId={activeSprintId}

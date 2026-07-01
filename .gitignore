@@ -9,3 +9,4 @@ src-tauri/gen/
 *.db-shm
 .claude/
 CLAUDE.md
+*.png

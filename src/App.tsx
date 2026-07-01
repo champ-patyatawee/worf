@@ -1,10 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { Dashboard } from "./pages/Dashboard";
-import { Kanban } from "./pages/Kanban";
 import { SprintProject } from "./pages/SprintProject";
 import { ProjectPage } from "./pages/ProjectPage";
-import { Projects } from "./pages/Projects";
 import { OKRs } from "./pages/OKRs";
 import { OKRDetail } from "./pages/OKRDetail";
 import { ChatSessionPage } from "./pages/chat/ChatSessionPage";
@@ -31,9 +29,9 @@ function App() {
           <Route path="/project" element={<ProjectPage />} />
           <Route path="/project/:boardId" element={<ProjectPage />} />
           {/* Projects listing */}
-          <Route path="/projects" element={<Projects />} />
+          <Route path="/projects" element={<Navigate to="/project" replace />} />
           {/* Legacy routes — redirects for backward compatibility */}
-          <Route path="/kanban" element={<Kanban />} />
+          <Route path="/kanban" element={<Navigate to="/project" replace />} />
           <Route path="/kanban/:boardId" element={<RedirectToProject />} />
           <Route path="/projects/:boardId" element={<RedirectToProject />} />
           {/* Keep SprintProject accessible for direct legacy access */}

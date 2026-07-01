@@ -4,7 +4,7 @@ export interface Board {
   name: string;
   slug: string;
   description: string | null;
-  board_type: string;   // "kanban" | "sprint"
+  board_type: string;   // always "sprint" now
   created_at: string;
   updated_at: string;
 }

@@ -92,8 +92,7 @@ export function TaskOverviewWidget() {
               <div className="space-y-1.5">
                 {inProgressTasks.slice(0, 5).map(t => (
                   <button key={t.id} onClick={() => {
-                    (window as any).__setPersistedBoardSlug?.('');
-                    navigate(`/kanban/${t.boardSlug}`);
+                    navigate(`/project/${t.boardSlug}`);
                   }}
                     className="w-full flex flex-col px-3 py-2 rounded-[8px] border-2 border-[#0D0D0D] bg-white/70 hover:bg-white transition-all text-left shadow-[2px_2px_0px_#0D0D0D] hover:translate-x-[-1px] hover:translate-y-[-1px] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0px_#0D0D0D]">
                     <span className="text-[13px] font-bold text-[var(--color-text-primary)] truncate">{t.title}</span>
@@ -101,11 +100,11 @@ export function TaskOverviewWidget() {
                   </button>
                 ))}
               </div>
-              {inProgressTasks.length > 5 && (
-                <button onClick={() => navigate('/kanban')} className="w-full text-center text-[11px] font-bold text-[var(--color-accent-primary)] mt-2 hover:underline py-1">
-                  View all {inProgressTasks.length} tasks
-                </button>
-              )}
+                {inProgressTasks.length > 5 && (
+                  <button onClick={() => navigate('/project')} className="w-full text-center text-[11px] font-bold text-[var(--color-accent-primary)] mt-2 hover:underline py-1">
+                    View all {inProgressTasks.length} tasks
+                  </button>
+                )}
             </div>
           )}
           <div className="mt-auto mb-3">

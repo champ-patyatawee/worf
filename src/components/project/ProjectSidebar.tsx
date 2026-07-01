@@ -2,9 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import type { Board } from '../../types';
-import { Plus, Trash2, Columns3, Timer, X, Search } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, X, Search } from 'lucide-react';
 
-type BoardType = 'kanban' | 'sprint';
+type BoardType = 'sprint';
 
 export function ProjectSidebar() {
   const location = useLocation();
@@ -12,7 +12,7 @@ export function ProjectSidebar() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [showDialog, setShowDialog] = useState(false);
   const [newBoardName, setNewBoardName] = useState('');
-  const [newBoardType, setNewBoardType] = useState<BoardType>('kanban');
+  const [newBoardType, setNewBoardType] = useState<BoardType>('sprint');
   const [searchQuery, setSearchQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -30,7 +30,7 @@ export function ProjectSidebar() {
   useEffect(() => {
     if (showDialog) {
       setNewBoardName('');
-      setNewBoardType('kanban');
+      setNewBoardType('sprint');
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [showDialog]);
@@ -39,7 +39,7 @@ export function ProjectSidebar() {
     const name = newBoardName.trim();
     if (!name) return;
     try {
-      const created = await invoke<Board>('create_board', { name, description: null, boardType: newBoardType });
+      const created = await invoke<Board>('create_board', { name, description: null });
       setShowDialog(false);
       await loadBoards();
       navigate(`/project/${created.slug}`);
@@ -61,15 +61,6 @@ export function ProjectSidebar() {
   const currentBoardSlug = location.pathname.startsWith('/project/')
     ? location.pathname.split('/')[2] : null;
 
-  // Also match old routes for backward compat highlight
-  if (!currentBoardSlug) {
-    const kanbanMatch = location.pathname.match(/^\/kanban\/(.+)/);
-    const projectMatch = location.pathname.match(/^\/projects\/(.+)/);
-    if (kanbanMatch) {
-      // We'll still highlight based on URL param
-    }
-  }
-
   const filteredBoards = boards.filter(b =>
     b.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -82,7 +73,7 @@ export function ProjectSidebar() {
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-[var(--radius-md)] border-2 flex items-center justify-center"
               style={{ borderColor: 'var(--color-border-primary)', backgroundColor: 'var(--color-accent-primary)' }}>
-              <Columns3 className="h-4 w-4 text-white" />
+              <RefreshCw className="h-4 w-4 text-white" />
             </div>
             <span className="font-extrabold text-lg tracking-tight" style={{ color: 'var(--color-text-primary)' }}>Projects</span>
           </div>
@@ -114,7 +105,6 @@ export function ProjectSidebar() {
         ) : (
           filteredBoards.map((board) => {
             const isActive = currentBoardSlug === board.slug;
-            const isSprint = board.board_type === 'sprint';
             return (
               <button
                 key={board.id}
@@ -126,11 +116,7 @@ export function ProjectSidebar() {
                 }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    {isSprint ? (
-                      <Timer className="h-3.5 w-3.5 flex-shrink-0" style={{ color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)' }} />
-                    ) : (
-                      <Columns3 className="h-3.5 w-3.5 flex-shrink-0" style={{ color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)' }} />
-                    )}
+                    <RefreshCw className="h-3.5 w-3.5 flex-shrink-0" style={{ color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)' }} />
                     <span className="text-sm truncate font-medium block"
                       style={{
                         color: isActive ? 'var(--color-accent-primary)' : 'var(--color-text-primary)',
@@ -138,14 +124,7 @@ export function ProjectSidebar() {
                       }}>
                       {board.name}
                     </span>
-                    <span className="text-[9px] font-bold px-1 py-0.5 rounded-full border flex-shrink-0"
-                      style={{
-                        borderColor: 'var(--color-border-primary)',
-                        color: 'var(--color-text-tertiary)',
-                        backgroundColor: 'var(--color-bg-tertiary)',
-                      }}>
-                      {isSprint ? <Timer className="h-3 w-3" /> : <Columns3 className="h-3 w-3" />}
-                    </span>
+
                   </div>
                 </div>
                 <button onClick={(e) => handleDeleteBoard(board.id, e)}
@@ -176,43 +155,6 @@ export function ProjectSidebar() {
                 placeholder="Project name..." autoFocus
                 className="w-full px-3 py-2 text-sm border-2 rounded-[var(--radius-md)] outline-none"
                 style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-primary)', color: 'var(--color-text-primary)' }} />
-
-              {/* Type picker */}
-              <div>
-                <label className="block text-xs font-bold mb-1.5" style={{ color: 'var(--color-text-secondary)' }}>Project Type</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNewBoardType('kanban')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-[var(--radius-md)] border-2 transition-all ${
-                      newBoardType === 'kanban'
-                        ? 'shadow-[1px_1px_0px_#0D0D0D]'
-                        : 'hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D]'
-                    }`}
-                    style={{
-                      backgroundColor: newBoardType === 'kanban' ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
-                      borderColor: 'var(--color-border-primary)',
-                      color: newBoardType === 'kanban' ? '#FFFFFF' : 'var(--color-text-primary)',
-                    }}>
-                    <Columns3 className="h-3.5 w-3.5" /> Kanban
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNewBoardType('sprint')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-[var(--radius-md)] border-2 transition-all ${
-                      newBoardType === 'sprint'
-                        ? 'shadow-[1px_1px_0px_#0D0D0D]'
-                        : 'hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_#0D0D0D]'
-                    }`}
-                    style={{
-                      backgroundColor: newBoardType === 'sprint' ? 'var(--color-accent-primary)' : 'var(--color-bg-secondary)',
-                      borderColor: 'var(--color-border-primary)',
-                      color: newBoardType === 'sprint' ? '#FFFFFF' : 'var(--color-text-primary)',
-                    }}>
-                    <Timer className="h-3.5 w-3.5" /> Sprint
-                  </button>
-                </div>
-              </div>
 
               <div className="flex justify-end gap-2 pt-1">
                 <button type="button" onClick={() => setShowDialog(false)}

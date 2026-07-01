@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
-import { ArrowLeft, Plus, Link, Pencil, Trash2, Timer, Columns3, CheckCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, Link, Pencil, Trash2, Columns3, CheckCircle, RefreshCw } from 'lucide-react';
 import type { ObjectiveWithKRs, Board } from '../types';
 import { KRRow, KRCreateModal, CheckInModal } from '../components/okr';
 
@@ -336,10 +336,10 @@ export function OKRDetail() {
                   className="flex items-center justify-between p-3 border-2 border-[#0D0D0D] rounded-[10px] bg-white shadow-[2px_2px_0px_#0D0D0D]"
                 >
                   <button
-                    onClick={() => navigate(board.board_type === 'sprint' ? `/projects/${board.slug}` : `/kanban/${board.slug}`)}
+                    onClick={() => navigate(`/project/${board.slug}`)}
                     className="flex items-center gap-2 min-w-0 hover:underline"
                   >
-                    {board.board_type === 'sprint' ? <Timer className="h-3.5 w-3.5" /> : <Columns3 className="h-3.5 w-3.5" />}
+                    <RefreshCw className="h-3.5 w-3.5" />
                     <span className="text-sm font-bold truncate" style={{ color: 'var(--color-text-primary)' }}>
                       {board.name}
                     </span>
@@ -404,7 +404,7 @@ export function OKRDetail() {
                     className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-bold rounded-[8px] border-2 border-[#0D0D0D] hover:bg-gray-100 transition-all text-left"
                     style={{ color: 'var(--color-text-primary)' }}
                   >
-                    {board.board_type === 'sprint' ? <Timer className="h-3.5 w-3.5" /> : <Columns3 className="h-3.5 w-3.5" />}
+                    <RefreshCw className="h-3.5 w-3.5" />
                     <span>{board.name}</span>
                   </button>
                 ))}

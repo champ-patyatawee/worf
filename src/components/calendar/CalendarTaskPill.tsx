@@ -15,7 +15,7 @@ export function CalendarTaskPill({ task }: { task: Task }) {
 
   return (
     <button
-      onClick={() => navigate(`/kanban/${task.board_id}`)}
+      onClick={() => navigate(`/project/${task.board_id}`)}
       className="w-full text-left truncate rounded px-1 py-0.5 text-[10px] font-bold leading-tight border transition-all hover:shadow-[1px_1px_0px_#0D0D0D] active:translate-x-0 active:translate-y-0 active:shadow-none mb-0.5 cursor-pointer"
       style={{
         backgroundColor: p.bg,

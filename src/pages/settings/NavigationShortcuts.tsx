@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, StickyNote, Columns3, Bot, Terminal, Settings } from "lucide-react";
+import { LayoutDashboard, StickyNote, LayoutGrid, Bot, Terminal, Settings } from "lucide-react";
 import { navigationShortcutStore } from "../../stores/navigationShortcutStore";
 import { KeyRecorder } from "../../components/common/KeyRecorder";
 import type { NavigationShortcut } from "../../types/navigation";
@@ -7,7 +7,7 @@ import type { NavigationShortcut } from "../../types/navigation";
 const ICON_MAP: Record<string, React.ComponentType<any>> = {
   dashboard: LayoutDashboard,
   notes: StickyNote,
-  kanban: Columns3,
+  projects: LayoutGrid,
   "ai-chat": Bot,
   terminal: Terminal,
   settings: Settings,

@@ -3,7 +3,7 @@ import type { NavigationShortcut } from "../types/navigation";
 export const DEFAULT_NAV_SHORTCUTS: NavigationShortcut[] = [
   { id: "dashboard", label: "Dashboard", path: "/",        key: "1", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
   { id: "notes",     label: "Notes",     path: "/notes",    key: "2", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
-  { id: "kanban",    label: "Kanban",    path: "/kanban",   key: "3", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
+  { id: "projects",  label: "Projects",  path: "/project",  key: "3", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
   { id: "ai-chat",   label: "AI Chat",   path: "/ai-chat",  key: "4", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
   { id: "terminal",  label: "Terminal",  path: null,        key: "5", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },
   { id: "settings",  label: "Settings",  path: "/settings/ai", key: "6", ctrlKey: true, shiftKey: false, altKey: false, metaKey: false },

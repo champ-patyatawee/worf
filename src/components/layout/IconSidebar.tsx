@@ -6,7 +6,7 @@ import { terminalStore } from "../../stores/terminalStore";
 const tabs = [
   { id: "dashboard", icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { id: "notes", icon: StickyNote, label: "Notes", path: "/notes" },
-  { id: "projects", icon: LayoutGrid, label: "Projects", path: "/projects" },
+  { id: "projects", icon: Columns3, label: "Projects", path: "/project" },
   { id: "okr", icon: Target, label: "OKRs", path: "/okr" },
   { id: "ai-chat", icon: Bot, label: "AI Chat", path: "/ai-chat" },
 ];

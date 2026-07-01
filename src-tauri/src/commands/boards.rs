@@ -141,12 +141,12 @@ let mut stmt = db.conn.prepare(
 }
 
 #[tauri::command]
-pub fn create_board(state: State<AppState>, name: String, description: Option<String>, board_type: Option<String>) -> Result<Board, String> {
+pub fn create_board(state: State<AppState>, name: String, description: Option<String>) -> Result<Board, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
     let slug = unique_board_slug(&db.conn, &name)?;
-    let bt = board_type.unwrap_or_else(|| "kanban".to_string());
+    let bt = "sprint".to_string();
 
     db.conn
         .execute(
