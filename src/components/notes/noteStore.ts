@@ -13,6 +13,7 @@ export interface NoteState {
   searchResults: SearchResult[];
   tags: string[];
   sidebarRefreshKey: number;
+  trashNotes: Note[];
 }
 
 // ── Store state ──
@@ -30,6 +31,7 @@ let state: NoteState = {
   searchResults: [],
   tags: [],
   sidebarRefreshKey: 0,
+  trashNotes: [],
 };
 
 function emit() {
@@ -67,6 +69,23 @@ function aggregateTags(notes: Note[]): string[] {
 export function triggerSidebarRefresh() {
   state.sidebarRefreshKey++;
   emit();
+}
+
+// ── Test helper ──
+/** Reset store state to initial values (for testing). */
+export function __resetState() {
+  state = {
+    notes: [],
+    folders: [],
+    draftFolderId: null,
+    activeNoteId: null,
+    activeNote: null,
+    loading: false,
+    searchResults: [],
+    tags: [],
+    sidebarRefreshKey: 0,
+    trashNotes: [],
+  };
 }
 
 // ── Store ──
@@ -349,6 +368,7 @@ export const noteStore = {
       const notes = await invoke<Note[]>("list_notes");
       state.notes = notes;
       state.tags = aggregateTags(notes);
+      state.trashNotes = await invoke<Note[]>("list_trash_notes").catch(() => []);
     } catch (e: any) {
       console.error("Failed to load all notes:", e);
     }
@@ -367,5 +387,73 @@ export const noteStore = {
     }
     state.loading = false;
     emit();
+  },
+
+  async trashNote(id: string) {
+    try {
+      const trashed = await invoke<Note>("trash_note", { id });
+      state.notes = state.notes.filter((n) => n.id !== id);
+      state.trashNotes = [trashed, ...state.trashNotes];
+      state.tags = aggregateTags(state.notes);
+      if (state.activeNoteId === id) {
+        state.activeNote = null;
+        state.activeNoteId = null;
+      }
+      emit();
+      triggerSidebarRefresh();
+    } catch (e: any) {
+      console.error("Failed to trash note:", e);
+    }
+  },
+
+  async restoreNote(id: string, folderId?: string | null) {
+    try {
+      const restored = await invoke<Note>("restore_note", { id });
+      // If a folder was specified, move the note there after restoring
+      if (folderId !== undefined) {
+        await invoke<Note>("move_note", { id, folderId });
+        restored.folder_id = folderId;
+      }
+      state.trashNotes = state.trashNotes.filter((n) => n.id !== id);
+      state.notes = [...state.notes, restored];
+      state.tags = aggregateTags(state.notes);
+      emit();
+      triggerSidebarRefresh();
+    } catch (e: any) {
+      console.error("Failed to restore note:", e);
+    }
+  },
+
+  async emptyTrash() {
+    try {
+      const count = await invoke<number>("empty_trash");
+      state.trashNotes = [];
+      emit();
+      triggerSidebarRefresh();
+      return count;
+    } catch (e: any) {
+      console.error("Failed to empty trash:", e);
+      return 0;
+    }
+  },
+
+  async loadTrashNotes() {
+    try {
+      state.trashNotes = await invoke<Note[]>("list_trash_notes");
+      emit();
+    } catch (e: any) {
+      console.error("Failed to load trash notes:", e);
+    }
+  },
+
+  async permanentDeleteNote(id: string) {
+    try {
+      await invoke("delete_note", { id });
+      state.trashNotes = state.trashNotes.filter((n) => n.id !== id);
+      emit();
+      triggerSidebarRefresh();
+    } catch (e: any) {
+      console.error("Failed to permanently delete note:", e);
+    }
   },
 };

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { Plus, Target } from 'lucide-react';
 import type { Objective, ObjectiveWithKRs } from '../types';
@@ -21,7 +22,15 @@ export function OKRs() {
   const [summaries, setSummaries] = useState<ObjectiveSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const navigate = useNavigate();
   const currentQuarter = getCurrentQuarter();
+
+  // Redirect to last opened OKR if coming from sidebar
+  useEffect(() => {
+    if (window.__persistedOkrId) {
+      navigate(`/okr/${window.__persistedOkrId}`, { replace: true });
+    }
+  }, []);
 
   const loadObjectives = useCallback(async () => {
     setLoading(true);

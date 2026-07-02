@@ -387,7 +387,7 @@ export function NoteEditor() {
     const active = st.activeNote;
     if (!active || !active.note) return;
     if (confirm(`Delete "${active.note.title || "Untitled"}"?`)) {
-      await noteStore.deleteNote(active.note.id);
+      await noteStore.trashNote(active.note.id);
       navigate("/notes");
     }
   }, [st.activeNote, navigate]);

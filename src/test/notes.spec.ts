@@ -174,7 +174,7 @@ describe("extractTags", () => {
 // noteStore tests
 // ============================================================================
 
-import { noteStore } from "../components/notes/noteStore";
+import { noteStore, __resetState } from "../components/notes/noteStore";
 import { invoke } from "@tauri-apps/api/core";
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -205,6 +205,7 @@ describe("noteStore", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetState();
   });
 
   describe("loadNotes", () => {
@@ -358,26 +359,80 @@ describe("noteStore", () => {
     });
   });
 
-  describe("deleteNote", () => {
-    it("calls invoke and removes note from list", async () => {
+  describe("trashNote", () => {
+    it("calls invoke trash_note and moves note to trashNotes", async () => {
       vi.mocked(invoke).mockResolvedValue([mockNote]);
       await noteStore.loadNotes();
       expect(noteStore.state.notes).toHaveLength(1);
+      expect(noteStore.state.trashNotes).toHaveLength(0);
 
-      vi.mocked(invoke).mockResolvedValue(undefined);
-      await noteStore.deleteNote("1");
-      expect(invoke).toHaveBeenCalledWith("delete_note", { id: "1" });
+      // Mock trash_note returning the trashed note, and list_trash_notes returning empty
+      vi.mocked(invoke).mockResolvedValue(mockNote);
+      await noteStore.trashNote("1");
+      expect(invoke).toHaveBeenCalledWith("trash_note", { id: "1" });
       expect(noteStore.state.notes).toHaveLength(0);
+      expect(noteStore.state.trashNotes).toHaveLength(1);
     });
 
-    it("clears activeNote if deleted", async () => {
+    it("clears activeNote if trashed", async () => {
       vi.mocked(invoke).mockResolvedValue(mockNoteWithRelations);
       await noteStore.openNote("1");
 
-      vi.mocked(invoke).mockResolvedValue(undefined);
-      await noteStore.deleteNote("1");
+      vi.mocked(invoke).mockResolvedValue(mockNote);
+      await noteStore.trashNote("1");
       expect(noteStore.state.activeNote).toBeNull();
       expect(noteStore.state.activeNoteId).toBeNull();
+    });
+  });
+
+  describe("restoreNote", () => {
+    it("calls invoke restore_note and moves note back to notes", async () => {
+      // Setup: trash a note first
+      vi.mocked(invoke).mockResolvedValue([mockNote]);
+      await noteStore.loadNotes();
+      vi.mocked(invoke).mockResolvedValue(mockNote);
+      await noteStore.trashNote("1");
+      expect(noteStore.state.trashNotes).toHaveLength(1);
+      expect(noteStore.state.notes).toHaveLength(0);
+
+      // Restore it
+      vi.mocked(invoke).mockResolvedValue(mockNote);
+      await noteStore.restoreNote("1");
+      expect(invoke).toHaveBeenCalledWith("restore_note", { id: "1" });
+      expect(noteStore.state.trashNotes).toHaveLength(0);
+      expect(noteStore.state.notes).toHaveLength(1);
+    });
+  });
+
+  describe("emptyTrash", () => {
+    it("calls invoke empty_trash and clears trashNotes", async () => {
+      // Setup: trash a note first
+      vi.mocked(invoke).mockResolvedValue([mockNote]);
+      await noteStore.loadNotes();
+      vi.mocked(invoke).mockResolvedValue(mockNote);
+      await noteStore.trashNote("1");
+
+      vi.mocked(invoke).mockResolvedValue(1);
+      const count = await noteStore.emptyTrash();
+      expect(invoke).toHaveBeenCalledWith("empty_trash");
+      expect(count).toBe(1);
+      expect(noteStore.state.trashNotes).toHaveLength(0);
+    });
+  });
+
+  describe("permanentDeleteNote", () => {
+    it("calls invoke delete_note and removes from trashNotes", async () => {
+      // Setup: trash a note first
+      vi.mocked(invoke).mockResolvedValue([mockNote]);
+      await noteStore.loadNotes();
+      vi.mocked(invoke).mockResolvedValue(mockNote);
+      await noteStore.trashNote("1");
+      expect(noteStore.state.trashNotes).toHaveLength(1);
+
+      vi.mocked(invoke).mockResolvedValue(undefined);
+      await noteStore.permanentDeleteNote("1");
+      expect(invoke).toHaveBeenCalledWith("delete_note", { id: "1" });
+      expect(noteStore.state.trashNotes).toHaveLength(0);
     });
   });
 

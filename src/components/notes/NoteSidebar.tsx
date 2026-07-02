@@ -13,9 +13,11 @@ import {
   ChevronRight,
   ChevronDown,
   Loader2,
+  RotateCcw,
 } from "lucide-react";
 import { noteStore, triggerSidebarRefresh } from "./noteStore";
 import type { Note, Folder as FolderType } from "./Types";
+import { FolderCreateModal } from "./FolderCreateModal";
 
 // ── Module-level drag state (shared via pointer events, like KanbanTaskCard) ──
 
@@ -52,11 +54,13 @@ export function NoteSidebar() {
   } | null>(null);
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [showFolderModal, setShowFolderModal] = useState(false);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<string>>(new Set());
   const [lastClickedId, setLastClickedId] = useState<string | null>(null);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+  const [restoreMenu, setRestoreMenu] = useState<{ noteId: string; x: number; y: number } | null>(null);
   const selectedNoteIdsRef = useRef<Set<string>>(new Set());
   /** Ref to access setDragOverFolder from global handlers without stale closure */
   const setDragOverFolderRef = useRef(setDragOverFolder);
@@ -98,10 +102,6 @@ export function NoteSidebar() {
   );
 
   // handleCreateNote is now inlined directly in the button onClick below
-
-  const handleCreateFolder = useCallback(() => {
-    setCreatingFolder(true);
-  }, []);
 
   const handleFolderClick = useCallback(
     (folderId: string) => {
@@ -635,6 +635,139 @@ export function NoteSidebar() {
         )}
       </div>
 
+      {/* ── Trash section (sticky below scroll) ── */}
+      <div className="flex-shrink-0 border-t-2" style={{ borderColor: "var(--color-border-primary)" }}>
+        <div
+          onClick={() => {
+            setShowTrash(!showTrash);
+            if (!showTrash) noteStore.loadTrashNotes();
+          }}
+          className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:opacity-80 transition-colors"
+          style={{
+            color: showTrash ? "var(--color-accent-primary)" : "var(--color-text-secondary)",
+            backgroundColor: showTrash ? "var(--color-accent-subtle)" : "transparent",
+          }}
+        >
+          <Trash2 className="w-4 h-4 flex-shrink-0" />
+          <span className="flex-1 text-sm font-semibold">Trash</span>
+          {st.trashNotes.length > 0 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full border"
+              style={{ borderColor: "var(--color-border-primary)", color: "var(--color-text-tertiary)" }}>
+              {st.trashNotes.length}
+            </span>
+          )}
+          {showTrash ? (
+            <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+          ) : (
+            <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          )}
+        </div>
+
+        {/* Trash notes list (expanded) */}
+        {showTrash && (
+          <div className="max-h-48 overflow-y-auto border-t" style={{ borderColor: "var(--color-border-secondary)" }}>
+            {st.trashNotes.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-center" style={{ color: "var(--color-text-tertiary)" }}>
+                Trash is empty
+              </div>
+            ) : (
+              <>
+                {st.trashNotes.map((note) => (
+                  <div key={note.id}
+                    className="flex items-center gap-2 px-3 py-2 text-sm border-b last:border-b-0"
+                    style={{ borderColor: "var(--color-border-secondary)" }}
+                  >
+                    <FileText className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
+                    <span className="flex-1 truncate" style={{ color: "var(--color-text-secondary)" }}>
+                      {note.title || "Untitled"}
+                    </span>
+                    <>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setRestoreMenu(
+                            restoreMenu?.noteId === note.id
+                              ? null
+                              : { noteId: note.id, x: rect.left, y: rect.bottom + 4 }
+                          );
+                        }}
+                        className="p-1 rounded hover:bg-[var(--color-bg-hover)] transition-colors"
+                        title="Restore to..."
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" style={{ color: "var(--color-accent-primary)" }} />
+                      </button>
+                      {restoreMenu?.noteId === note.id && (
+                        <div className="fixed z-50 w-40 py-1 rounded-[var(--radius-md)] border-2 animate-scaleIn"
+                          style={{
+                            left: restoreMenu.x,
+                            top: restoreMenu.y,
+                            backgroundColor: "var(--color-bg-primary)",
+                            borderColor: "var(--color-border-primary)",
+                            boxShadow: "var(--shadow-card)",
+                          }}>
+                          <button
+                            onClick={async () => {
+                              await noteStore.restoreNote(note.id, null);
+                              setRestoreMenu(null);
+                            }}
+                            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-bg-hover)]"
+                            style={{ color: "var(--color-text-primary)" }}
+                          >
+                            <FileText className="w-3 h-3" />
+                            Unfiled
+                          </button>
+                          {st.folders.map((f) => (
+                            <button
+                              key={f.id}
+                              onClick={async () => {
+                                await noteStore.restoreNote(note.id, f.id);
+                                setRestoreMenu(null);
+                              }}
+                              className="flex items-center gap-2 w-full px-3 py-1.5 text-xs text-left hover:bg-[var(--color-bg-hover)]"
+                              style={{ color: "var(--color-text-primary)" }}
+                            >
+                              <Folder className="w-3 h-3" />
+                              {f.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (confirm(`Permanently delete "${note.title || "Untitled"}"?`)) {
+                          await noteStore.permanentDeleteNote(note.id);
+                        }
+                      }}
+                      className="p-1 rounded hover:bg-[var(--color-bg-hover)] transition-colors"
+                      title="Delete permanently"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" style={{ color: "var(--color-error)" }} />
+                    </button>
+                  </div>
+                ))}
+                {/* Empty Trash button */}
+                {st.trashNotes.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      if (confirm(`Permanently delete all ${st.trashNotes.length} trashed notes?`)) {
+                        await noteStore.emptyTrash();
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-xs font-bold text-center hover:bg-[var(--color-bg-hover)] transition-colors"
+                    style={{ color: "var(--color-error)" }}
+                  >
+                    Empty Trash
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Bottom action bar */}
       <div
         className="flex items-center gap-1 p-3 border-t-2"
@@ -662,56 +795,19 @@ export function NoteSidebar() {
         >
           <Plus className="w-3.5 h-3.5" /> New Note
         </button>
-        {creatingFolder ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const input = (e.target as HTMLFormElement).querySelector<HTMLInputElement>('input');
-              const name = input?.value?.trim();
-              if (name) {
-                noteStore.createFolder(name).then(() => {
-                  setExpandedFolders((prev) => {
-                    const next = new Set(prev);
-                    st.folders.forEach((f) => next.add(f.id));
-                    return next;
-                  });
-                });
-              }
-              setCreatingFolder(false);
-            }}
-            className="flex items-center gap-1 flex-1"
-          >
-            <input
-              type="text"
-              placeholder="Folder name..."
-              autoFocus
-              className="w-full px-2 py-1 text-xs font-medium border-2 rounded-[var(--radius-sm)] outline-none"
-              style={{
-                backgroundColor: "var(--color-bg-primary)",
-                borderColor: "var(--color-accent-primary)",
-                color: "var(--color-text-primary)",
-              }}
-              onBlur={() => setCreatingFolder(false)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") setCreatingFolder(false);
-              }}
-            />
-          </form>
-        ) : (
-          <button
-            onClick={handleCreateFolder}
-            className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] border-2 btn-brutal transition-all"
-            style={{
-              backgroundColor: "var(--color-bg-secondary)",
-              borderColor: "var(--color-border-primary)",
-              color: "var(--color-text-secondary)",
-              boxShadow: "var(--shadow-sm)",
-            }}
-            title="New Folder"
-          >
-            <Folder className="w-3.5 h-3.5" />
-          </button>
-        )}
+        <button
+          onClick={() => setShowFolderModal(true)}
+          className="flex items-center justify-center w-9 h-9 rounded-[var(--radius-md)] border-2 btn-brutal transition-all"
+          style={{
+            backgroundColor: "var(--color-bg-secondary)",
+            borderColor: "var(--color-border-primary)",
+            color: "var(--color-text-secondary)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+          title="New Folder"
+        >
+          <Folder className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Folder context menu */}
@@ -779,6 +875,11 @@ export function NoteSidebar() {
         </div>
       )}
 
+      {/* Restore menu backdrop */}
+      {restoreMenu && (
+        <div className="fixed inset-0 z-40" onClick={() => setRestoreMenu(null)} />
+      )}
+
       {/* ── Move dialog ── */}
       {showMoveDialog && (
         <>
@@ -824,6 +925,21 @@ export function NoteSidebar() {
           </div>
         </>
       )}
+
+      <FolderCreateModal
+        isOpen={showFolderModal}
+        onClose={() => setShowFolderModal(false)}
+        onCreated={async (name) => {
+          const folder = await noteStore.createFolder(name);
+          if (folder) {
+            setExpandedFolders((prev) => {
+              const next = new Set(prev);
+              st.folders.forEach((f) => next.add(f.id));
+              return next;
+            });
+          }
+        }}
+      />
     </aside>
   );
 }

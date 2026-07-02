@@ -1,5 +1,5 @@
 import { useNavigate, useLocation, Outlet } from "react-router-dom";
-import { Settings2, Brain, FileText, Terminal, Keyboard } from "lucide-react";
+import { Settings2, Brain, FileText, Terminal, Keyboard, Database } from "lucide-react";
 
 const tabs = [
   { id: "ai", icon: Brain, label: "AI Providers", path: "/settings/ai" },
@@ -7,6 +7,7 @@ const tabs = [
   { id: "prompts", icon: FileText, label: "Prompt Templates", path: "/settings/prompts" },
   { id: "terminal", icon: Terminal, label: "Terminal", path: "/settings/terminal" },
   { id: "navigation", icon: Keyboard, label: "Navigation", path: "/settings/navigation" },
+  { id: "backup", icon: Database, label: "Backup", path: "/settings/backup" },
 ];
 
 export function SettingsLayout() {

@@ -52,14 +52,6 @@ pub fn create_sprint(
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
 
-    // If board already has an active sprint, set it back to "planning"
-    db.conn
-        .execute(
-            "UPDATE sprints SET status = 'planning', updated_at = ?1 WHERE board_id = ?2 AND status = 'active'",
-            rusqlite::params![now, board_id],
-        )
-        .map_err(|e| e.to_string())?;
-
     db.conn
         .execute(
             "INSERT INTO sprints (id, board_id, name, goal, start_date, end_date, status, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",

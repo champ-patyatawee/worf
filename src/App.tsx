@@ -12,6 +12,7 @@ import { AIProvider } from "./pages/settings/AIProvider";
 import { PromptTemplates } from "./pages/settings/PromptTemplates";
 import { TerminalSettings } from "./pages/settings/TerminalSettings";
 import { NavigationShortcuts } from "./pages/settings/NavigationShortcuts";
+import { BackupRestore } from "./pages/settings/BackupRestore";
 
 // Redirect helper: reads :boardId from URL and redirects to /project/:boardId
 function RedirectToProject() {
@@ -48,6 +49,7 @@ function App() {
             <Route path="prompts" element={<PromptTemplates />} />
             <Route path="terminal" element={<TerminalSettings />} />
             <Route path="navigation" element={<NavigationShortcuts />} />
+            <Route path="backup" element={<BackupRestore />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

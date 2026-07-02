@@ -41,6 +41,9 @@ conn.execute_batch("PRAGMA foreign_keys=ON;")?;
         // Migration 007: board_type for project routing
         conn.execute_batch(include_str!("../migrations/007_board_type.sql")).ok();
 
+        // Migration 008: Soft delete for notes (trash)
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN deleted_at TEXT DEFAULT NULL").ok();
+
         println!("Database initialized at: {:?}", db_path);
         Ok(Database { conn, path: db_path })
     }
@@ -77,6 +80,9 @@ conn.execute_batch("PRAGMA foreign_keys=ON;")?;
 
         // Migration 007: board_type for project routing
         conn.execute_batch(include_str!("../migrations/007_board_type.sql")).ok();
+
+        // Migration 008: Soft delete for notes (trash)
+        conn.execute_batch("ALTER TABLE notes ADD COLUMN deleted_at TEXT DEFAULT NULL").ok();
 
         Ok(Database { conn, path: PathBuf::new() })
     }

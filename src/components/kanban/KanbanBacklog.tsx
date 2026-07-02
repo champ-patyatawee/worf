@@ -127,7 +127,7 @@ function SprintSection({
       style={{
         backgroundColor: 'var(--color-bg-primary)',
         borderColor: 'var(--color-border-primary)',
-        borderLeft: '4px solid #CA8A04',
+        borderLeft: sprint.status === 'active' ? '4px solid #16A34A' : '4px solid #CA8A04',
       }}
     >
       {/* Header — clickable to toggle */}
@@ -143,15 +143,19 @@ function SprintSection({
           {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
         </span>
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <span className="inline-block w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0" />
+          <span className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: sprint.status === 'active' ? '#16A34A' : '#CA8A04' }} />
           <span className="font-extrabold text-base truncate" style={{ color: 'var(--color-text-primary)' }}>
             {sprint.name}
           </span>
           <span
             className="flex-shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full"
-            style={{ backgroundColor: 'rgba(202, 138, 4, 0.15)', color: '#CA8A04' }}
+            style={{
+              backgroundColor: sprint.status === 'active' ? 'rgba(22, 163, 74, 0.15)' : 'rgba(202, 138, 4, 0.15)',
+              color: sprint.status === 'active' ? '#16A34A' : '#CA8A04',
+            }}
           >
-            Planning
+            {sprint.status === 'active' ? 'Active' : 'Planning'}
           </span>
         </div>
         <span className="text-xs font-semibold flex-shrink-0" style={{ color: 'var(--color-text-secondary)' }}>

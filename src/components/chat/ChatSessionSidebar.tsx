@@ -38,7 +38,10 @@ export function ChatSessionSidebar() {
     e.stopPropagation();
     if (!confirm("Delete this chat session?")) return;
     await chatSessionStore.deleteSession(id);
-    if (location.pathname.includes(id)) navigate("/ai-chat");
+    if (location.pathname.includes(id)) {
+      (window as any).__setPersistedSessionId?.(null);
+      navigate("/ai-chat");
+    }
   };
 
   const handleStartEdit = (e: React.MouseEvent, id: string, title: string) => {
@@ -75,7 +78,7 @@ export function ChatSessionSidebar() {
           const isEditing = editingId === session.id;
           return (
             <div key={session.id} onClick={() => handleSelectChat(session.id)}
-              className="flex items-center gap-3 rounded-[var(--radius-md)] px-2 py-2 mb-1 transition-colors cursor-pointer"
+              className="group flex items-center gap-3 rounded-[var(--radius-md)] px-2 py-2 mb-1 transition-colors cursor-pointer"
               style={{ backgroundColor: isActive ? "var(--color-accent-subtle)" : "transparent", borderLeft: isActive ? "3px solid var(--color-accent-primary)" : "3px solid transparent" }}>
               <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" style={{ color: isActive ? "var(--color-accent-primary)" : "var(--color-text-tertiary)", opacity: 0.5 }} />
               <div className="flex-1 min-w-0">
@@ -94,13 +97,11 @@ export function ChatSessionSidebar() {
               </div>
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 <button onClick={(e) => handleStartEdit(e, session.id, session.title || "")}
-                  className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--color-bg-hover)]"
-                  style={{ opacity: 0 }} onMouseEnter={(e) => e.currentTarget.style.opacity = "1"} onMouseLeave={(e) => e.currentTarget.style.opacity = "0"}>
+                  className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--color-bg-hover)]">
                   <Pencil className="w-3 h-3" style={{ color: "var(--color-text-tertiary)" }} />
                 </button>
                 <button onClick={(e) => handleDeleteChat(e, session.id)}
-                  className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--color-bg-hover)]"
-                  style={{ opacity: 0 }} onMouseEnter={(e) => e.currentTarget.style.opacity = "1"} onMouseLeave={(e) => e.currentTarget.style.opacity = "0"}>
+                  className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--color-bg-hover)]">
                   <Trash2 className="w-3 h-3" style={{ color: "var(--color-error)" }} />
                 </button>
               </div>

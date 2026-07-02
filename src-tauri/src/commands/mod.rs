@@ -1,3 +1,4 @@
+pub mod backup;
 pub mod boards;
 pub mod chats;
 pub mod folders;

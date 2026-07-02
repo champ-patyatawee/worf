@@ -5,6 +5,8 @@ import { ArrowLeft, Plus, Link, Pencil, Trash2, Columns3, CheckCircle, RefreshCw
 import type { ObjectiveWithKRs, Board } from '../types';
 import { KRRow, KRCreateModal, CheckInModal } from '../components/okr';
 
+declare global { interface Window { __persistedOkrId?: string } }
+
 export function OKRDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -42,6 +44,7 @@ export function OKRDetail() {
   }, []);
 
   useEffect(() => {
+    if (id) window.__persistedOkrId = id;
     loadData();
     loadBoards();
   }, [loadData, loadBoards]);
@@ -136,7 +139,10 @@ export function OKRDetail() {
       <div className="max-w-[800px] mx-auto">
         {/* Back button */}
         <button
-          onClick={() => navigate('/okr')}
+          onClick={() => {
+            window.__persistedOkrId = undefined;
+            navigate('/okr');
+          }}
           className="flex items-center gap-1.5 mb-6 text-xs font-bold hover:underline"
           style={{ color: 'var(--color-text-secondary)' }}
         >

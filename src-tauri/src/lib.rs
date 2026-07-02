@@ -80,6 +80,10 @@ pub fn run() {
             commands::notes::get_note,
             commands::notes::update_note,
             commands::notes::delete_note,
+            commands::notes::trash_note,
+            commands::notes::restore_note,
+            commands::notes::empty_trash,
+            commands::notes::list_trash_notes,
             commands::notes::list_notes,
             commands::notes::list_root_notes,
             commands::notes::list_notes_in_folder,
@@ -124,6 +128,9 @@ pub fn run() {
             commands::okr::delete_key_result,
             commands::okr::link_board_to_objective,
             commands::okr::unlink_board_from_objective,
+            // Backup / Restore
+            commands::backup::backup_database,
+            commands::backup::restore_database,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

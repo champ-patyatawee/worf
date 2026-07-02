@@ -396,6 +396,74 @@ pub fn delete_note(state: State<AppState>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn trash_note(state: State<AppState>, id: String) -> Result<Note, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().to_rfc3339();
+    db.conn
+        .execute(
+            "UPDATE notes SET deleted_at = ?1, updated_at = ?1 WHERE id = ?2 AND deleted_at IS NULL",
+            rusqlite::params![now, id],
+        )
+        .map_err(|e| format!("Failed to trash note: {}", e))?;
+    note_from_query(
+        &db.conn,
+        &format!("{} FROM notes WHERE id = ?1", NOTE_SELECT),
+        &[&id as &dyn rusqlite::types::ToSql],
+    )
+}
+
+#[tauri::command]
+pub fn restore_note(state: State<AppState>, id: String) -> Result<Note, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    db.conn
+        .execute(
+            "UPDATE notes SET deleted_at = NULL, updated_at = ?1 WHERE id = ?2",
+            rusqlite::params![chrono::Utc::now().to_rfc3339(), id],
+        )
+        .map_err(|e| format!("Failed to restore note: {}", e))?;
+    note_from_query(
+        &db.conn,
+        &format!("{} FROM notes WHERE id = ?1", NOTE_SELECT),
+        &[&id as &dyn rusqlite::types::ToSql],
+    )
+}
+
+#[tauri::command]
+pub fn empty_trash(state: State<AppState>) -> Result<i32, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let count: i32 = db
+        .conn
+        .query_row(
+            "SELECT COUNT(*) FROM notes WHERE deleted_at IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    db.conn
+        .execute("DELETE FROM notes WHERE deleted_at IS NOT NULL", [])
+        .map_err(|e| format!("Failed to empty trash: {}", e))?;
+    Ok(count)
+}
+
+#[tauri::command]
+pub fn list_trash_notes(state: State<AppState>) -> Result<Vec<Note>, String> {
+    let db = state.db.lock().map_err(|e| e.to_string())?;
+    let mut stmt = db
+        .conn
+        .prepare(&format!(
+            "{} FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC",
+            NOTE_SELECT
+        ))
+        .map_err(|e| e.to_string())?;
+    let notes = stmt
+        .query_map([], row_to_note)
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(notes)
+}
+
+#[tauri::command]
 pub fn list_notes(
     state: State<AppState>,
     folder_id: Option<String>,
@@ -403,7 +471,7 @@ pub fn list_notes(
     search: Option<String>,
 ) -> Result<Vec<Note>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    let mut sql = format!("{} FROM notes WHERE 1=1", NOTE_SELECT);
+    let mut sql = format!("{} FROM notes WHERE deleted_at IS NULL", NOTE_SELECT);
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
     if let Some(ref fid) = folder_id {
@@ -439,7 +507,7 @@ pub fn list_root_notes(state: State<AppState>) -> Result<Vec<Note>, String> {
     let mut stmt = db
         .conn
         .prepare(&format!(
-            "{} FROM notes WHERE folder_id IS NULL ORDER BY pinned DESC, position ASC, updated_at DESC",
+            "{} FROM notes WHERE folder_id IS NULL AND deleted_at IS NULL ORDER BY pinned DESC, position ASC, updated_at DESC",
             NOTE_SELECT
         ))
         .map_err(|e| e.to_string())?;
@@ -457,7 +525,7 @@ pub fn list_notes_in_folder(state: State<AppState>, folder_id: String) -> Result
     let mut stmt = db
         .conn
         .prepare(&format!(
-            "{} FROM notes WHERE folder_id = ?1 ORDER BY pinned DESC, position ASC, updated_at DESC",
+            "{} FROM notes WHERE folder_id = ?1 AND deleted_at IS NULL ORDER BY pinned DESC, position ASC, updated_at DESC",
             NOTE_SELECT
         ))
         .map_err(|e| e.to_string())?;

@@ -41,6 +41,7 @@ const mockStoreState = vi.hoisted(
       searchResults: [],
       tags: [],
       sidebarRefreshKey: 0,
+      trashNotes: [],
     }) as any
 );
 
@@ -78,6 +79,11 @@ vi.mock("../components/notes/noteStore", () => ({
     openNote: vi.fn(),
     createNote: vi.fn(),
     deleteNote: vi.fn(),
+    trashNote: vi.fn(),
+    restoreNote: vi.fn(),
+    emptyTrash: vi.fn(),
+    loadTrashNotes: vi.fn(),
+    permanentDeleteNote: vi.fn(),
     togglePinNote: vi.fn(),
     searchNotes: vi.fn(),
     loadNotesInFolder: vi.fn(),

@@ -101,6 +101,16 @@ pub fn rename_folder(state: State<AppState>, id: String, name: String) -> Result
 #[tauri::command]
 pub fn delete_folder(state: State<AppState>, id: String) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // Trash all notes in this folder before deleting it
+    db.conn
+        .execute(
+            "UPDATE notes SET deleted_at = ?1, updated_at = ?1 WHERE folder_id = ?2 AND deleted_at IS NULL",
+            rusqlite::params![now, id],
+        )
+        .map_err(|e| e.to_string())?;
+
     db.conn
         .execute("DELETE FROM folders WHERE id = ?1", rusqlite::params![id])
         .map_err(|e| e.to_string())?;

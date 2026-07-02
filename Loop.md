@@ -1,9 +1,9 @@
 You are the Main Agent (Planner). Your role is to plan and delegate tasks to Subagents.
 
-Your goals to make note feture work correct
+Your goals to make backup/resotre feature
+database is backup to file and save to dir user select
 
-1 bug: first time note not show pin note user need to expen folder
-1 feat: pin note show on top and in folder
+add in setting page
 
 You have the following Subagents:
 

@@ -13,6 +13,8 @@ import { CalendarView } from '../components/kanban/CalendarView';
 import { ProjectSidebar } from '../components/project/ProjectSidebar';
 import { Columns3, RefreshCw, CalendarDays, Target, Plus, ExternalLink, ArrowUpRight } from 'lucide-react';
 
+declare global { interface Window { __persistedProjectSlug?: string } }
+
 const COLUMNS: { id: string; label: string }[] = [
   { id: 'todo', label: 'To Do' },
   { id: 'in_progress', label: 'In Progress' },
@@ -28,6 +30,13 @@ const tabs = [
 export function ProjectPage() {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
+
+  // Redirect to last opened project if none selected
+  useEffect(() => {
+    if (!boardId && window.__persistedProjectSlug) {
+      navigate(`/project/${window.__persistedProjectSlug}`, { replace: true });
+    }
+  }, []);
 
   // Core state
   const [board, setBoard] = useState<Board | null>(null);
@@ -133,6 +142,7 @@ export function ProjectPage() {
   // When boardId changes, load board data
   useEffect(() => {
     if (boardId) {
+      window.__persistedProjectSlug = boardId;
       setActiveTab('sprint');
       loadBoardData(boardId);
     } else {
@@ -311,7 +321,7 @@ export function ProjectPage() {
   // ===== Derived state =====
   const currentSprint = activeSprintId ? sprints.find(s => s.id === activeSprintId) ?? null : null;
   const hasActiveSprint = sprints.some(s => s.status === 'active');
-  const planningSprints = sprints.filter(s => s.status === 'planning');
+  const planningSprints = sprints.filter(s => s.status === 'planning' || s.status === 'active');
 
   const sprintTasks = activeSprintId
     ? tasks.filter((t) => t.sprint_id === activeSprintId)
@@ -337,7 +347,7 @@ export function ProjectPage() {
   };
 
   const renderSprintTab = () => {
-    // Mode 1: Active sprint exists → show kanban columns filtered by sprint
+    // Mode 1: Sprint selected → show kanban columns only (no backlog)
     if (activeSprintId && currentSprint?.status === 'active') {
       return (
         <div className="flex-1 overflow-x-scroll overflow-y-hidden scrollbar-thin p-4"
@@ -359,7 +369,7 @@ export function ProjectPage() {
       );
     }
 
-    // Mode 2: No active sprint → show backlog + planning sprints
+    // Mode 2: No sprint selected → show backlog + planning/active sprints
     return (
       <KanbanBacklog
         tasks={tasks}
